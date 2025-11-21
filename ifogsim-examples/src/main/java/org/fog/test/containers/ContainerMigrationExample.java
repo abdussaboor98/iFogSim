@@ -22,8 +22,10 @@ public class ContainerMigrationExample {
 
     public static void main(String[] args) {
         try {
+            // Initialize the core simulator and clock.
             CloudSim.init(1, Calendar.getInstance(), false);
 
+            // Edge hosts the VM, cloud acts as the migration target.
             FogDevice edge = ContainerExampleUtils.createFogDevice("mobile-edge", 3000, 2048, 5000, 5000, 2, 0.02, 90, 70);
             FogDevice cloud = ContainerExampleUtils.createFogDevice("cloud", 10000, 24576, 20000, 20000, 0, 0.005, 250, 180);
 
@@ -32,6 +34,7 @@ public class ContainerMigrationExample {
             devices.add(cloud);
             new Controller("migration-controller", devices, new ArrayList<>(), new ArrayList<>());
 
+            // Provision a VM on the edge device to host the containerized workload.
             Vm edgeVm = new Vm(
                     FogUtils.generateEntityId(),
                     2,
@@ -55,10 +58,12 @@ public class ContainerMigrationExample {
                     96);
             edgeVm.allocateContainer(appContainer);
 
+            // Submit a migration request that moves the container from the edge VM to the cloud host.
             ContainerMigrationManager migrationManager = new ContainerMigrationManager("vm-to-cloud-migration");
             ContainerMigrationRequest request = new ContainerMigrationRequest(appContainer, edgeVm, cloud, 10, 4000);
             migrationManager.scheduleMigration(request, 200);
 
+            // Run the simulation and print where the container finally landed.
             CloudSim.startSimulation();
             CloudSim.stopSimulation();
 

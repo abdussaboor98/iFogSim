@@ -38,6 +38,7 @@ final class ContainerExampleUtils {
             double busyPower,
             double idlePower) throws Exception {
 
+        // Each fog device owns a single PowerHost configured with overbooking-friendly provisioners.
         List<Pe> peList = new ArrayList<>();
         PeProvisioner peProvisioner = new PeProvisionerOverbooking(mips);
         peList.add(new Pe(0, peProvisioner));
@@ -80,6 +81,7 @@ final class ContainerExampleUtils {
                 costPerStorage,
                 costPerBw);
 
+        // Wrap the host into a FogDevice so it can participate in the iFogSim control plane.
         FogDevice fogDevice = new FogDevice(
                 nodeName,
                 characteristics,

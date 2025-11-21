@@ -21,9 +21,11 @@ public class ContainerExecutionExample {
 
     public static void main(String[] args) {
         try {
+            // Initialize the CloudSim core with a single user and no tracing.
             CloudSim.init(1, Calendar.getInstance(), false);
 
             List<FogDevice> fogDevices = new ArrayList<>();
+            // Build a lightweight edge device and a more powerful cloud tier.
             FogDevice edge = ContainerExampleUtils.createFogDevice("edge-device", 4000, 4096, 10000, 1000000, 1, 0.01, 107.0, 83.0);
             FogDevice cloud = ContainerExampleUtils.createFogDevice("cloud", 8000, 16384, 20000, 2000000, 0, 0.005, 200.0, 150.0);
             fogDevices.add(edge);
@@ -44,7 +46,7 @@ public class ContainerExecutionExample {
                     128);
             edge.allocateContainer(edgeContainer);
 
-            // Container hosted inside a VM on the cloud device.
+            // Create a VM so we can also demonstrate nested container execution inside virtualized resources.
             Vm vm = new Vm(
                     FogUtils.generateEntityId(),
                     1,
@@ -74,6 +76,7 @@ public class ContainerExecutionExample {
                     new ContainerMigrationRequest(edgeContainer, edge, cloud, 5, 5000),
                     150);
 
+            // Start/stop the simulation clock and inspect the resulting states.
             CloudSim.startSimulation();
             CloudSim.stopSimulation();
 
