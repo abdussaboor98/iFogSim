@@ -13,6 +13,9 @@ import org.fog.application.AppEdge;
 import org.fog.application.AppLoop;
 import org.fog.application.AppModule;
 import org.fog.application.Application;
+import org.fog.entities.container.ContainerHost;
+import org.fog.entities.container.ContainerInstance;
+import org.fog.entities.container.ContainerState;
 import org.fog.mobilitydata.Clustering;
 import org.fog.policy.AppModuleAllocationPolicy;
 import org.fog.scheduler.StreamOperatorScheduler;
@@ -21,7 +24,7 @@ import org.json.simple.JSONObject;
 
 import java.util.*;
 
-public class FogDevice extends PowerDatacenter {
+public class FogDevice extends PowerDatacenter implements ContainerHost {
     protected Queue<Tuple> northTupleQueue;
     protected Queue<Pair<Tuple, Integer>> southTupleQueue;
 
@@ -86,6 +89,12 @@ public class FogDevice extends PowerDatacenter {
     protected Queue<Pair<Tuple, Integer>> clusterTupleQueue;// tuple and destination cluster device ID
     protected boolean isClusterLinkBusy; //Flag denoting whether the link connecting to cluster from this FogDevice is busy
     protected double clusterLinkBandwidth;
+
+    private final List<ContainerInstance> containerInstances = new ArrayList<>();
+    private double containerCpuAllocated;
+    private long containerRamAllocated;
+    private long containerBwAllocated;
+    private long containerStorageAllocated;
 
 
     public FogDevice(
@@ -337,6 +346,13 @@ public class FogDevice extends PowerDatacenter {
      */
     protected void manageResources(SimEvent ev) {
         updateEnergyConsumption();
+        double currentTime = CloudSim.clock();
+        updateContainers(currentTime);
+        for (Vm vm : getHost().getVmList()) {
+            if (vm instanceof ContainerHost) {
+                ((ContainerHost) vm).updateContainers(currentTime);
+            }
+        }
         send(getId(), Config.RESOURCE_MGMT_INTERVAL, FogEvents.RESOURCE_MGMT);
     }
 
@@ -595,9 +611,8 @@ public class FogDevice extends PowerDatacenter {
     private void updateEnergyConsumption() {
         double totalMipsAllocated = 0;
         for (final Vm vm : getHost().getVmList()) {
-            AppModule operator = (AppModule) vm;
-            operator.updateVmProcessing(CloudSim.clock(), getVmAllocationPolicy().getHost(operator).getVmScheduler()
-                    .getAllocatedMipsForVm(operator));
+            vm.updateVmProcessing(CloudSim.clock(), getVmAllocationPolicy().getHost(vm).getVmScheduler()
+                    .getAllocatedMipsForVm(vm));
             totalMipsAllocated += getHost().getTotalAllocatedMipsForVm(vm);
         }
 
@@ -916,6 +931,124 @@ public class FogDevice extends PowerDatacenter {
 
     public PowerHost getHost() {
         return (PowerHost) getHostList().get(0);
+    }
+
+    @Override
+    public String getHostName() {
+        return getName();
+    }
+
+    @Override
+    public double getTotalCpuMips() {
+        return getHost().getTotalMips();
+    }
+
+    @Override
+    public double getAvailableCpuMips() {
+        return Math.max(0, getTotalCpuMips() - containerCpuAllocated);
+    }
+
+    @Override
+    public long getTotalRam() {
+        return getHost().getRam();
+    }
+
+    @Override
+    public long getAvailableRam() {
+        return Math.max(0, getTotalRam() - containerRamAllocated);
+    }
+
+    @Override
+    public long getTotalBw() {
+        return getHost().getBw();
+    }
+
+    @Override
+    public long getAvailableBw() {
+        return Math.max(0, getTotalBw() - containerBwAllocated);
+    }
+
+    @Override
+    public long getTotalStorage() {
+        return getHost().getStorage();
+    }
+
+    @Override
+    public long getAvailableStorage() {
+        return Math.max(0, getTotalStorage() - containerStorageAllocated);
+    }
+
+    @Override
+    public List<ContainerInstance> getContainers() {
+        return Collections.unmodifiableList(containerInstances);
+    }
+
+    @Override
+    public boolean canHost(ContainerInstance container) {
+        return getAvailableCpuMips() >= container.getCpuDemand()
+                && getAvailableRam() >= container.getRamDemand()
+                && getAvailableBw() >= container.getBandwidthDemand()
+                && getAvailableStorage() >= container.getStorageDemand();
+    }
+
+    @Override
+    public boolean allocateContainer(ContainerInstance container) {
+        if (!canHost(container)) {
+            return false;
+        }
+        containerInstances.add(container);
+        containerCpuAllocated += container.getCpuDemand();
+        containerRamAllocated += container.getRamDemand();
+        containerBwAllocated += container.getBandwidthDemand();
+        containerStorageAllocated += container.getStorageDemand();
+        container.assignHost(this, CloudSim.clock());
+        return true;
+    }
+
+    @Override
+    public void deallocateContainer(ContainerInstance container) {
+        if (containerInstances.remove(container)) {
+            releaseContainerResources(container);
+        }
+    }
+
+    @Override
+    public void pauseContainer(ContainerInstance container) {
+        container.pause();
+    }
+
+    @Override
+    public void resumeContainer(ContainerInstance container) {
+        container.resume(CloudSim.clock());
+    }
+
+    @Override
+    public void updateContainers(double currentTime) {
+        Iterator<ContainerInstance> iterator = containerInstances.iterator();
+        while (iterator.hasNext()) {
+            ContainerInstance container = iterator.next();
+            if (container.getContainerState() == ContainerState.MIGRATING || container.getContainerState() == ContainerState.PAUSED) {
+                continue;
+            }
+            if (container.getContainerState() == ContainerState.COMPLETED || container.getContainerState() == ContainerState.FAILED) {
+                iterator.remove();
+                releaseContainerResources(container);
+                continue;
+            }
+            boolean finished = container.updateExecution(currentTime, container.getCpuDemand(), getTotalCpuMips());
+            if (finished) {
+                iterator.remove();
+                releaseContainerResources(container);
+            }
+        }
+    }
+
+    private void releaseContainerResources(ContainerInstance container) {
+        containerCpuAllocated = Math.max(0, containerCpuAllocated - container.getCpuDemand());
+        containerRamAllocated = Math.max(0, containerRamAllocated - container.getRamDemand());
+        containerBwAllocated = Math.max(0, containerBwAllocated - container.getBandwidthDemand());
+        containerStorageAllocated = Math.max(0, containerStorageAllocated - container.getStorageDemand());
+        container.detachHost();
     }
 
     public int getParentId() {

@@ -7,14 +7,19 @@
 
 package org.cloudbus.cloudsim;
 
+import org.cloudbus.cloudsim.core.CloudSim;
 import org.cloudbus.cloudsim.core.GuestEntity;
 import org.cloudbus.cloudsim.core.HostEntity;
 import org.cloudbus.cloudsim.core.VirtualEntity;
 import org.cloudbus.cloudsim.lists.PeList;
 import org.cloudbus.cloudsim.provisioners.BwProvisioner;
 import org.cloudbus.cloudsim.provisioners.RamProvisioner;
+import org.fog.entities.container.ContainerHost;
+import org.fog.entities.container.ContainerInstance;
+import org.fog.entities.container.ContainerState;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -28,7 +33,7 @@ import java.util.List;
  * @author Remo Andreoli
  * @since CloudSim Toolkit 1.0
  */
-public class Vm implements VirtualEntity {
+public class Vm implements VirtualEntity, ContainerHost {
 
 	/** The VM unique id. */
 	private int id;
@@ -121,6 +126,12 @@ public class Vm implements VirtualEntity {
 	private final List<VmStateHistoryEntry> stateHistory = new LinkedList<>();
 
 	private int virtualizationOverhead;
+
+	private final List<ContainerInstance> containerInstances = new ArrayList<>();
+	private double containerCpuAllocated;
+	private long containerRamAllocated;
+	private long containerBwAllocated;
+	private long containerStorageAllocated;
 
 	/**
 	 * Creates a new Vm object.
@@ -586,5 +597,122 @@ public class Vm implements VirtualEntity {
 	@Deprecated
 	public static String getUid(int userId, int vmId) {
 		return userId + "-" + vmId;
+	}
+
+	@Override
+	public String getHostName() {
+		return getUid();
+	}
+
+	@Override
+	public double getTotalCpuMips() {
+		return getMips() * getNumberOfPes();
+	}
+
+	@Override
+	public double getAvailableCpuMips() {
+		return Math.max(0, getTotalCpuMips() - containerCpuAllocated);
+	}
+
+	@Override
+	public long getTotalRam() {
+		return getRam();
+	}
+
+	@Override
+	public long getAvailableRam() {
+		return Math.max(0, getTotalRam() - containerRamAllocated);
+	}
+
+	@Override
+	public long getTotalBw() {
+		return getBw();
+	}
+
+	@Override
+	public long getAvailableBw() {
+		return Math.max(0, getTotalBw() - containerBwAllocated);
+	}
+
+	@Override
+	public long getTotalStorage() {
+		return getSize();
+	}
+
+	@Override
+	public long getAvailableStorage() {
+		return Math.max(0, getTotalStorage() - containerStorageAllocated);
+	}
+
+	@Override
+	public List<ContainerInstance> getContainers() {
+		return Collections.unmodifiableList(containerInstances);
+	}
+
+	@Override
+	public boolean canHost(ContainerInstance container) {
+		return getAvailableCpuMips() >= container.getCpuDemand()
+				&& getAvailableRam() >= container.getRamDemand()
+				&& getAvailableBw() >= container.getBandwidthDemand()
+				&& getAvailableStorage() >= container.getStorageDemand();
+	}
+
+	@Override
+	public boolean allocateContainer(ContainerInstance container) {
+		if (!canHost(container)) {
+			return false;
+		}
+		containerInstances.add(container);
+		containerCpuAllocated += container.getCpuDemand();
+		containerRamAllocated += container.getRamDemand();
+		containerBwAllocated += container.getBandwidthDemand();
+		containerStorageAllocated += container.getStorageDemand();
+		container.assignHost(this, CloudSim.clock());
+		return true;
+	}
+
+	@Override
+	public void deallocateContainer(ContainerInstance container) {
+		if (containerInstances.remove(container)) {
+			releaseContainerResources(container);
+		}
+	}
+
+	@Override
+	public void pauseContainer(ContainerInstance container) {
+		container.pause();
+	}
+
+	@Override
+	public void resumeContainer(ContainerInstance container) {
+		container.resume(CloudSim.clock());
+	}
+
+	@Override
+	public void updateContainers(double currentTime) {
+		for (int i = 0; i < containerInstances.size(); i++) {
+			ContainerInstance container = containerInstances.get(i);
+			if (container.getContainerState() == ContainerState.MIGRATING || container.getContainerState() == ContainerState.PAUSED) {
+				continue;
+			}
+			if (container.getContainerState() == ContainerState.COMPLETED || container.getContainerState() == ContainerState.FAILED) {
+				containerInstances.remove(i--);
+				releaseContainerResources(container);
+				continue;
+			}
+			boolean finished = container.updateExecution(currentTime, container.getCpuDemand(), getTotalCpuMips());
+			if (finished) {
+				containerInstances.remove(i--);
+				releaseContainerResources(container);
+			}
+		}
+	}
+
+	private void releaseContainerResources(ContainerInstance container) {
+		containerCpuAllocated = Math.max(0, containerCpuAllocated - container.getCpuDemand());
+		containerRamAllocated = Math.max(0, containerRamAllocated - container.getRamDemand());
+		containerBwAllocated = Math.max(0, containerBwAllocated - container.getBandwidthDemand());
+		containerStorageAllocated = Math.max(0, containerStorageAllocated - container.getStorageDemand());
+		container.detachHost();
 	}
 }
