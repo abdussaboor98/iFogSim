@@ -31,6 +31,7 @@ import java.util.Random;
 public class DecisionAgent extends SimEntity {
 
     private static final double URGENCY_EPS = 1e-6;
+    private static final boolean DEBUG_MIG = false;
 
     private final int fogNodeId;
     private final SimulationConfig config;
@@ -66,6 +67,10 @@ public class DecisionAgent extends SimEntity {
         reputation.put(fogNodeId, slaConfig.getReputationInit());
         this.paymentManager = new PaymentManager(slaConfig, config.getWorkload(), reputation, wallet);
         this.migrationManager = new MigrationManager(config);
+    }
+
+    private void debug(String msg) {
+        System.out.println("[decision " + fogNodeId + " t=" + CloudSim.clock() + "] " + msg);
     }
 
     @Override
@@ -213,6 +218,10 @@ public class DecisionAgent extends SimEntity {
             return;
         }
         bid.responses.put(response.getBidderFogId(), response);
+        if (DEBUG_MIG) {
+            debug("received bid response from " + response.getBidderFogId() + " totalCost=" + response.totalCost()
+                    + " reqId=" + response.getRequestId());
+        }
         if (bid.responses.size() >= bid.targetIds.size()) {
             finalizeBids(response.getRequestId());
         }
@@ -257,6 +266,9 @@ public class DecisionAgent extends SimEntity {
             send(CloudSim.getEntityId("decision-agent-" + instr.sourceFogId()), 0.0,
                     SimulationEvents.EVT_MIGRATION_COMPLETE, result);
             return;
+        }
+        if (DEBUG_MIG) {
+            debug("placing migrated container from fog " + instr.sourceFogId() + " onto server " + target.getServerId());
         }
         assignToServer(target, instr.profile(), true);
         double runDuration = estimateRunDuration(instr.profile());
@@ -394,6 +406,9 @@ public class DecisionAgent extends SimEntity {
             if (score > preselectThreshold) {
                 scored.add(new ScoredNode(state.getNodeId(), score));
             }
+            if (DEBUG_MIG) {
+                debug("preselect score fog=" + state.getNodeId() + " score=" + score + " threshold=" + preselectThreshold);
+            }
         }
         double cloudScore = cloudScore(profile);
         scored.sort((a, b) -> Double.compare(b.score, a.score));
@@ -402,6 +417,9 @@ public class DecisionAgent extends SimEntity {
         List<Integer> targetIds = new ArrayList<>();
         for (ScoredNode node : top) {
             targetIds.add(node.nodeId());
+        }
+        if (DEBUG_MIG) {
+            debug("selected targets=" + targetIds + " includeCloud=" + includeCloud + " cloudScore=" + cloudScore);
         }
         PendingBid bid = new PendingBid(bidSeq++, profile, now, economicsConfig.getBidTimeoutSec(),
                 targetIds, includeCloud, sourceServerId);
@@ -429,7 +447,9 @@ public class DecisionAgent extends SimEntity {
 
     private double cloudScore(ContainerProfile profile) {
         double[] weights = computeWeights(profile, CloudSim.clock());
-        return weights[0] * 1.0 + weights[1] * 1.0 + weights[2] * economicsConfig.getCloudBandwidthFactor();
+        return weights[0] * economicsConfig.getCloudBandwidthFactor()
+                + weights[1] * economicsConfig.getCloudBandwidthFactor()
+                + weights[2] * economicsConfig.getCloudBandwidthFactor();
     }
 
     private double[] computeWeights(ContainerProfile profile, double now) {
@@ -614,6 +634,9 @@ public class DecisionAgent extends SimEntity {
                 gossipView.put(entry.getKey(), copyState(state));
             }
         }
+        if (DEBUG_MIG) {
+            debug("seeded gossip view with " + gossipView.keySet());
+        }
     }
 
     private void removeFromServer(ServerState server) {
@@ -652,6 +675,9 @@ public class DecisionAgent extends SimEntity {
         double winningBidCost = Double.POSITIVE_INFINITY;
         Integer winner = null;
         for (BidResponse resp : bid.responses.values()) {
+            if (Double.isInfinite(resp.totalCost())) {
+                continue;
+            }
             double cSla = clampReputation(reputation.getOrDefault(resp.getBidderFogId(), slaConfig.getReputationInit()));
             double evaluation = resp.totalCost() + cSla;
             if (evaluation < bestEval) {
@@ -660,17 +686,19 @@ public class DecisionAgent extends SimEntity {
                 winningBidCost = resp.totalCost();
             }
         }
-        if (bid.includeCloud) {
-            double cloudEval = bid.cloudCost + slaConfig.getReputationInit();
-            if (cloudEval < bestEval) {
+        if (winner == null) {
+            if (bid.includeCloud) {
                 winner = -1;
-                bestEval = cloudEval;
                 winningBidCost = bid.cloudCost;
+            } else {
+                winner = -1;
+                winningBidCost = Double.isInfinite(winningBidCost) ? cloudBidCost(bid.profile) : winningBidCost;
             }
         }
-        if (winner == null) {
-            winner = -1;
-            winningBidCost = Double.isInfinite(winningBidCost) ? cloudBidCost(bid.profile) : winningBidCost;
+        if (DEBUG_MIG) {
+            debug("bid finalize requestId=" + requestId + " responses=" + bid.responses.size()
+                    + " winner=" + winner + " winningCost=" + winningBidCost + " includeCloud=" + bid.includeCloud
+                    + " cloudCost=" + bid.cloudCost);
         }
         MigrationLog.Phase phase = winner == fogNodeId ? MigrationLog.Phase.LOCAL : (winner == -1 ? MigrationLog.Phase.CLOUD : MigrationLog.Phase.INTER_FOG);
         MigrationPlan plan = new MigrationPlan(bid.profile, winner, winningBidCost, bid.sourceServerId, phase, now);
