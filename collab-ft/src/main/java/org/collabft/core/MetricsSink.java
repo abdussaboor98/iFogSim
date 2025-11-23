@@ -3,6 +3,7 @@ package org.collabft.core;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import org.collabft.model.MigrationLog;
+import org.collabft.model.PaymentReport;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -23,14 +24,17 @@ public final class MetricsSink {
 
     private final ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
     private final Path outDir = Path.of("results", "collab-ft", "metrics");
+    private final Path paymentsDir = Path.of("results", "collab-ft", "payments");
     private final List<MigrationLog> migrations = new ArrayList<>();
     private final List<Double> faultRecoveryTimes = new ArrayList<>();
+    private final List<PaymentReport> payments = new ArrayList<>();
     private long gossipBytes = 0L;
     private long bidBytes = 0L;
 
     private MetricsSink() {
         try {
             Files.createDirectories(outDir);
+            Files.createDirectories(paymentsDir);
         } catch (IOException e) {
             // Metrics should not crash the simulation
         }
@@ -60,8 +64,15 @@ public final class MetricsSink {
         }
     }
 
+    public synchronized void recordPayment(PaymentReport report) {
+        if (report != null) {
+            payments.add(report);
+        }
+    }
+
     public synchronized void flush(double simulationEndTime) {
         writeMigrationsCsv();
+        writePayments();
         writeSummary(simulationEndTime);
     }
 
@@ -77,6 +88,7 @@ public final class MetricsSink {
         payload.put("makespan", makespan(simulationEndTime));
         payload.put("energyEstimate", energyEstimate());
         payload.put("availability", availability(simulationEndTime));
+        payload.put("paymentCount", payments.size());
         return payload;
     }
 
@@ -118,6 +130,7 @@ public final class MetricsSink {
         payload.put("makespan", makespan(simulationEndTime));
         payload.put("energyEstimate", energyEstimate());
         payload.put("availability", availability(simulationEndTime));
+        payload.put("paymentCount", payments.size());
         try {
             Files.writeString(summary, mapper.writeValueAsString(payload),
                     StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
@@ -162,6 +175,19 @@ public final class MetricsSink {
     private double energyEstimate() {
         // Simple proxy: longer migrations imply higher energy; scale lightly to avoid skew.
         return meanMigrationTime() * migrations.size();
+    }
+
+    private void writePayments() {
+        Path jsonl = paymentsDir.resolve("payments.jsonl");
+        StringBuilder sb = new StringBuilder();
+        try {
+            for (PaymentReport report : payments) {
+                sb.append(mapper.writeValueAsString(report)).append(System.lineSeparator());
+            }
+            Files.writeString(jsonl, sb.toString(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        } catch (IOException e) {
+            // ignore
+        }
     }
 
     private double availability(double simulationEndTime) {

@@ -56,6 +56,10 @@ public final class SimulationMain {
             decisionIds.add(decision.getId());
         }
         for (int i = 0; i < fogCount; i++) {
+            gossipAgents.get(i).setDecisionAgentId(decisionAgents.get(i).getId());
+            decisionAgents.get(i).setGossipAgentId(gossipAgents.get(i).getId());
+        }
+        for (int i = 0; i < fogCount; i++) {
             FogNodeState state = deployment.getFogStates().get(i);
             if (state != null) {
                 gossipAgents.get(i).updateLocalState(state);

@@ -7,6 +7,7 @@ import org.cloudbus.cloudsim.core.CloudSimTags;
  */
 public enum SimulationEvents implements CloudSimTags {
     EVT_GOSSIP_TICK,
+    EVT_GOSSIP_VIEW,
     EVT_FAULT_PREDICTED,
     EVT_FAULT_HIT,
     EVT_FAULT_RECOVERED,

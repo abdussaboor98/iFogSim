@@ -30,6 +30,8 @@ import java.util.Random;
  */
 public class DecisionAgent extends SimEntity {
 
+    private static final double URGENCY_EPS = 1e-6;
+
     private final int fogNodeId;
     private final SimulationConfig config;
     private final Wallet wallet;
@@ -44,6 +46,7 @@ public class DecisionAgent extends SimEntity {
     private final Map<Integer, Double> reputation = new HashMap<>();
     private final Random rng;
     private long bidSeq = 1L;
+    private int gossipAgentId = -1;
 
     public DecisionAgent(int fogNodeId, List<ServerState> servers, SimulationConfig config) {
         super("decision-agent-" + fogNodeId);
@@ -79,6 +82,8 @@ public class DecisionAgent extends SimEntity {
             handleBidRequest((BidRequest) ev.getData());
         } else if (ev.getTag() == SimulationEvents.EVT_BID_RESPONSE) {
             handleBidResponse(ev.getData());
+        } else if (ev.getTag() == SimulationEvents.EVT_GOSSIP_VIEW) {
+            handleGossipView(ev.getData());
         } else if (ev.getTag() == SimulationEvents.EVT_MIGRATION_COMPLETE) {
             handleMigrationComplete(ev.getData());
         } else if (ev.getTag() == SimulationEvents.EVT_PAYMENT) {
@@ -90,14 +95,21 @@ public class DecisionAgent extends SimEntity {
         if (fault == null || fault.getFogNodeId() != fogNodeId) {
             return;
         }
+        boolean changed = false;
         for (ServerState server : servers) {
             if (server.getServerId() == fault.getServerId() && server.hasContainer()) {
                 ContainerProfile profile = activeProfiles.get(server.getContainerId());
                 if (profile != null) {
                     removeFromServer(server);
+                    changed = true;
                     initiateMigration(profile, server.getServerId(), MigrationLog.Phase.LOCAL);
                 }
             }
+        }
+        if (changed) {
+            FogNodeState updated = rebuildLocalState();
+            gossipView.put(fogNodeId, updated);
+            pushLocalStateToGossip(updated);
         }
     }
 
@@ -112,7 +124,9 @@ public class DecisionAgent extends SimEntity {
                 server.setCrashed(true);
             }
         }
-        gossipView.put(fogNodeId, rebuildLocalState());
+        FogNodeState updated = rebuildLocalState();
+        gossipView.put(fogNodeId, updated);
+        pushLocalStateToGossip(updated);
     }
 
     private void handleRecovery(FaultEvent fault) {
@@ -129,7 +143,9 @@ public class DecisionAgent extends SimEntity {
                 }
             }
         }
-        gossipView.put(fogNodeId, rebuildLocalState());
+        FogNodeState updated = rebuildLocalState();
+        gossipView.put(fogNodeId, updated);
+        pushLocalStateToGossip(updated);
     }
 
     private void handleContainerArrival(ContainerProfile profile) {
@@ -152,9 +168,9 @@ public class DecisionAgent extends SimEntity {
         if (target == null) {
             response.setCostResource(Double.POSITIVE_INFINITY);
         } else {
-            double costRes = 1.0 - target.residualScore() / 3.0;
-            double costMig = migrationCost(profile, MigrationLog.Phase.INTER_FOG);
-            double costRisk = 1.0 - reputation.getOrDefault(request.getOriginFogId(), slaConfig.getReputationInit());
+            double costRes = resourceCost(profile);
+            double costMig = bidMigrationCost(profile, MigrationLog.Phase.INTER_FOG);
+            double costRisk = riskCost(target);
             response.setCostResource(costRes);
             response.setCostMigration(costMig);
             response.setCostRisk(costRisk);
@@ -183,6 +199,32 @@ public class DecisionAgent extends SimEntity {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private void handleGossipView(Object data) {
+        if (!(data instanceof Map<?, ?> incoming)) {
+            return;
+        }
+        double now = CloudSim.clock();
+        double stalenessLimit = config.getGossip().getIntervalSec() * config.getGossip().getStalenessIntervals();
+        for (Map.Entry<?, ?> entry : ((Map<?, ?>) incoming).entrySet()) {
+            if (!(entry.getKey() instanceof Integer id)) {
+                continue;
+            }
+            Object value = entry.getValue();
+            if (!(value instanceof FogNodeState state)) {
+                continue;
+            }
+            if (state.isStale(now, stalenessLimit) || state.getNodeId() == fogNodeId) {
+                continue;
+            }
+            FogNodeState existing = gossipView.get(id);
+            if (existing == null || state.getTimestamp() > existing.getTimestamp()) {
+                gossipView.put(id, copyState(state));
+            }
+        }
+        gossipView.put(fogNodeId, rebuildLocalState());
+    }
+
     private void handleMigrationComplete(Object data) {
         // Placeholder for updating local state after migration completion or timeout.
     }
@@ -191,15 +233,18 @@ public class DecisionAgent extends SimEntity {
         if (payment == null) {
             return;
         }
+        MetricsSink.get().recordPayment(payment);
         if (payment.getPayeeFogId() == fogNodeId) {
             wallet.credit(payment.getPayment());
         }
         if (payment.getPayerFogId() == fogNodeId) {
             wallet.debit(Math.abs(payment.getPayment()));
         }
-        double delta = payment.isReward() ? 0.05 : -0.05;
-        reputation.merge(payment.getPayeeFogId(), clampReputation(slaConfig.getReputationInit() + delta),
-                (oldVal, newVal) -> clampReputation(oldVal + delta));
+        if (payment.getPayeeFogId() >= 0) {
+            double delta = payment.isReward() ? 0.05 : -0.05;
+            reputation.merge(payment.getPayeeFogId(), clampReputation(slaConfig.getReputationInit() + delta),
+                    (oldVal, newVal) -> clampReputation(oldVal + delta));
+        }
     }
 
     private void initiateMigration(ContainerProfile profile, int sourceServerId, MigrationLog.Phase desiredPhase) {
@@ -248,6 +293,7 @@ public class DecisionAgent extends SimEntity {
         server.setTimestamp(CloudSim.clock());
         FogNodeState updated = rebuildLocalState();
         gossipView.put(fogNodeId, updated);
+        pushLocalStateToGossip(updated);
         activeProfiles.put(profile.getId(), profile);
         MigrationLog log = new MigrationLog(profile.getId(), fogNodeId, fogNodeId, -1, server.getServerId(),
                 MigrationLog.Phase.LOCAL, CloudSim.clock());
@@ -292,7 +338,7 @@ public class DecisionAgent extends SimEntity {
         }
         send(getId(), economicsConfig.getBidTimeoutSec(), SimulationEvents.EVT_BID_RESPONSE, new BidTimeout(bid.requestId));
         if (includeCloud) {
-            bid.cloudCost = 1.0 - cloudScore;
+            bid.cloudCost = cloudBidCost(profile);
         }
     }
 
@@ -314,8 +360,8 @@ public class DecisionAgent extends SimEntity {
         double pCpu = safeRatio(profile.getRequiredCpu(), profile.totalRequirement());
         double pMem = safeRatio(profile.getRequiredMem(), profile.totalRequirement());
         double pBw = safeRatio(profile.getRequiredBw(), profile.totalRequirement());
-        double urgencyNorm = computeUrgency(profile, now);
-        double gamma = Math.min(1.0, slaConfig.getUrgencyScale() * urgencyNorm);
+        double urgencyNorm = computeUrgencyNorm(profile, now);
+        double gamma = pBw + urgencyNorm * (1.0 - pBw);
         double remaining = Math.max(0.0, 1.0 - gamma);
         double cpuMemSum = pCpu + pMem;
         double alpha = cpuMemSum > 0 ? remaining * (pCpu / cpuMemSum) : remaining / 2.0;
@@ -323,34 +369,63 @@ public class DecisionAgent extends SimEntity {
         return new double[]{alpha, beta, gamma};
     }
 
-    private double computeUrgency(ContainerProfile profile, double now) {
+    private double computeUrgencyNorm(ContainerProfile profile, double now) {
         double elapsed = Math.max(0.0, now - profile.getArrivalTime());
-        double timeLeft = profile.getDeadlineSec() - elapsed;
-        double horizon = Math.max(1.0, profile.getDeadlineSec());
-        double u = 1.0 - Math.max(0.0, timeLeft) / horizon;
-        return Math.min(1.0, Math.max(0.0, u));
+        double slack = Math.max(0.0, profile.getDeadlineSec() - elapsed);
+        double inv = 1.0 / Math.max(URGENCY_EPS, slack);
+        double scaled = slaConfig.getUrgencyScale() * inv;
+        return Math.min(1.0, Math.max(0.0, scaled));
     }
 
     private double estimateMigrationSeconds(ContainerProfile profile, MigrationLog.Phase phase) {
-        double bw = config.getTopology().getServerBw();
-        double factor = switch (phase) {
-            case LOCAL -> 1.0;
-            case INTER_FOG -> 0.8;
-            case CLOUD -> economicsConfig.getCloudBandwidthFactor();
-        };
-        double effectiveBw = Math.max(1.0, bw * factor);
+        double effectiveBw = Math.max(1.0, effectiveBandwidth(phase));
         return profile.getSizeMb() / effectiveBw + 0.1 * profile.getSizeMb() / effectiveBw;
     }
 
     private double migrationCost(ContainerProfile profile, MigrationLog.Phase phase) {
-        double bw = config.getTopology().getServerBw();
-        double factor = switch (phase) {
-            case LOCAL -> 1.0;
-            case INTER_FOG -> 0.8;
-            case CLOUD -> economicsConfig.getCloudBandwidthFactor();
-        };
-        double effectiveBw = Math.max(1.0, bw * factor);
+        double effectiveBw = Math.max(1.0, effectiveBandwidth(phase));
         return profile.getSizeMb() / effectiveBw + 0.1 * profile.getSizeMb();
+    }
+
+    private double normalizedResources(ContainerProfile profile) {
+        double rMax = config.getWorkload().getMaxCpu()
+                + config.getWorkload().getMaxMem()
+                + config.getWorkload().getMaxBw();
+        if (rMax <= 0) {
+            rMax = profile.totalRequirement();
+        }
+        return safeRatio(profile.totalRequirement(), rMax);
+    }
+
+    private double resourceCost(ContainerProfile profile) {
+        return profile.getRequiredCpu() * 1.0
+                + profile.getRequiredMem() * 0.5
+                + profile.getRequiredBw() * 0.2;
+    }
+
+    private double cloudBidCost(ContainerProfile profile) {
+        return resourceCost(profile) + bidMigrationCost(profile, MigrationLog.Phase.CLOUD);
+    }
+
+    private double riskCost(ServerState server) {
+        double pFail = server.cpuLoad() * 0.5;
+        return pFail * 5.0;
+    }
+
+    private double bidMigrationCost(ContainerProfile profile, MigrationLog.Phase phase) {
+        double bw = Math.max(1.0, effectiveBandwidth(phase));
+        double transfer = profile.getSizeMb() / bw;
+        double restore = 0.1 * profile.getSizeMb();
+        return transfer + restore;
+    }
+
+    private double effectiveBandwidth(MigrationLog.Phase phase) {
+        double bw = config.getTopology().getServerBw();
+        return switch (phase) {
+            case LOCAL -> bw;
+            case INTER_FOG -> bw * 0.8;
+            case CLOUD -> bw * economicsConfig.getCloudBandwidthFactor();
+        };
     }
 
     private double safeRatio(double value, double total) {
@@ -399,6 +474,44 @@ public class DecisionAgent extends SimEntity {
         return state;
     }
 
+    private void pushLocalStateToGossip(FogNodeState state) {
+        if (gossipAgentId >= 0 && state != null) {
+            send(gossipAgentId, 0.0, SimulationEvents.EVT_GOSSIP_VIEW, copyState(state));
+        }
+    }
+
+    private FogNodeState copyState(FogNodeState source) {
+        FogNodeState dest = new FogNodeState(source.getNodeId());
+        dest.setCpuTotal(source.getCpuTotal());
+        dest.setCpuUsed(source.getCpuUsed());
+        dest.setMemTotal(source.getMemTotal());
+        dest.setMemUsed(source.getMemUsed());
+        dest.setBwTotal(source.getBwTotal());
+        dest.setBwUsed(source.getBwUsed());
+        dest.setActiveContainers(source.getActiveContainers());
+        dest.setActiveServers(source.getActiveServers());
+        dest.setTimestamp(source.getTimestamp());
+        dest.setVersion(source.getVersion());
+        List<ServerState> copies = new ArrayList<>();
+        for (ServerState server : source.getServers()) {
+            copies.add(copyServer(server));
+        }
+        dest.setServers(copies);
+        return dest;
+    }
+
+    private ServerState copyServer(ServerState server) {
+        ServerState dest = new ServerState(server.getFogNodeId(), server.getServerId(),
+                server.getCpuTotal(), server.getMemTotal(), server.getBwTotal());
+        dest.setCpuUsed(server.getCpuUsed());
+        dest.setMemUsed(server.getMemUsed());
+        dest.setBwUsed(server.getBwUsed());
+        dest.setCrashed(server.isCrashed());
+        dest.setContainerId(server.getContainerId());
+        dest.setTimestamp(server.getTimestamp());
+        return dest;
+    }
+
     @Override
     public void shutdownEntity() {
         if (fogNodeId == 0) {
@@ -426,6 +539,10 @@ public class DecisionAgent extends SimEntity {
         return localState;
     }
 
+    public void setGossipAgentId(int gossipAgentId) {
+        this.gossipAgentId = gossipAgentId;
+    }
+
     private void removeFromServer(ServerState server) {
         if (server == null || server.getContainerId() == null) {
             return;
@@ -446,22 +563,29 @@ public class DecisionAgent extends SimEntity {
         }
         double now = CloudSim.clock();
         activeProfiles.remove(bid.profile.getId());
-        double bestCost = Double.POSITIVE_INFINITY;
+        double bestEval = Double.POSITIVE_INFINITY;
+        double winningBidCost = Double.POSITIVE_INFINITY;
         Integer winner = null;
         for (BidResponse resp : bid.responses.values()) {
             double cSla = clampReputation(reputation.getOrDefault(resp.getBidderFogId(), slaConfig.getReputationInit()));
-            double total = resp.totalCost() + cSla;
-            if (total < bestCost) {
-                bestCost = total;
+            double evaluation = resp.totalCost() + cSla;
+            if (evaluation < bestEval) {
+                bestEval = evaluation;
                 winner = resp.getBidderFogId();
+                winningBidCost = resp.totalCost();
             }
         }
-        if (bid.includeCloud && bid.cloudCost < bestCost) {
-            winner = -1;
-            bestCost = bid.cloudCost;
+        if (bid.includeCloud) {
+            double cloudEval = bid.cloudCost + slaConfig.getReputationInit();
+            if (cloudEval < bestEval) {
+                winner = -1;
+                bestEval = cloudEval;
+                winningBidCost = bid.cloudCost;
+            }
         }
         if (winner == null) {
             winner = -1;
+            winningBidCost = Double.isInfinite(winningBidCost) ? cloudBidCost(bid.profile) : winningBidCost;
         }
         MigrationLog.Phase phase = winner == fogNodeId ? MigrationLog.Phase.LOCAL : (winner == -1 ? MigrationLog.Phase.CLOUD : MigrationLog.Phase.INTER_FOG);
         double duration = estimateMigrationSeconds(bid.profile, phase);
@@ -473,6 +597,7 @@ public class DecisionAgent extends SimEntity {
                 assignToServer(srv, bid.profile);
                 targetServer = srv.getServerId();
                 skipLog = true;
+                winningBidCost = resourceCost(bid.profile) + bidMigrationCost(bid.profile, MigrationLog.Phase.LOCAL);
             }
         }
         MigrationLog log = new MigrationLog(bid.profile.getId(), fogNodeId, winner, bid.sourceServerId, targetServer, phase, now);
@@ -484,21 +609,21 @@ public class DecisionAgent extends SimEntity {
             MetricsSink.get().recordMigration(log);
         }
 
-        PaymentReport pay = computePayment(bid.profile, winner, deadlineMet, now + duration);
+        PaymentReport pay = computePayment(bid.profile, winner, deadlineMet, now + duration, winningBidCost);
         send(CloudSim.getEntityId("decision-agent-" + fogNodeId), 0.0, SimulationEvents.EVT_PAYMENT, pay);
         if (winner >= 0) {
             send(CloudSim.getEntityId("decision-agent-" + winner), 0.0, SimulationEvents.EVT_PAYMENT, pay);
         }
     }
 
-    private PaymentReport computePayment(ContainerProfile profile, int payee, boolean deadlineMet, double ts) {
-        double reliability = deadlineMet ? 1.0 : 0.0;
-        double urgency = computeUrgency(profile, ts);
-        double slaValue = slaConfig.getReliabilityWeight() * reliability + slaConfig.getUrgencyWeight() * urgency;
+    private PaymentReport computePayment(ContainerProfile profile, int payee, boolean deadlineMet, double ts, double bidCost) {
+        double rNorm = normalizedResources(profile);
+        double uNorm = computeUrgencyNorm(profile, ts);
+        double slaValue = slaConfig.getReliabilityWeight() * rNorm + slaConfig.getUrgencyWeight() * uNorm;
         slaValue = Math.min(1.0, Math.max(0.0, slaValue));
-        double payment = deadlineMet ? slaValue : -slaConfig.getPenaltyEta() * slaValue;
+        double payment = deadlineMet ? bidCost + slaValue : bidCost - slaConfig.getPenaltyEta() * slaValue;
         return new PaymentReport(profile.getId(), fogNodeId, payee, slaValue, payment, !deadlineMet,
-                reliability, urgency, ts);
+                rNorm, uNorm, ts);
     }
 
     private double clampReputation(double val) {

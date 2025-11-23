@@ -9,6 +9,7 @@ import org.collabft.config.SimulationConfig;
 import org.collabft.model.FogNodeState;
 import org.collabft.model.GossipMessage;
 import org.collabft.model.ServerState;
+import org.collabft.core.MetricsSink;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -35,6 +36,7 @@ public class GossipAgent extends SimEntity {
     private final Path logFile;
     private final ObjectMapper mapper;
     private int neighborAgentId = -1;
+    private int decisionAgentId = -1;
     private FogNodeState localState;
     private long sequence = 0L;
 
@@ -67,6 +69,11 @@ public class GossipAgent extends SimEntity {
             onGossipTick();
         } else if (ev.getTag() == SimulationEvents.EVT_GOSSIP_MESSAGE) {
             onGossipMessage((GossipMessage) ev.getData());
+        } else if (ev.getTag() == SimulationEvents.EVT_GOSSIP_VIEW) {
+            if (ev.getData() instanceof FogNodeState state && state.getNodeId() == fogNodeId) {
+                this.localState = copy(state);
+                stateTable.put(fogNodeId, copy(state));
+            }
         }
     }
 
@@ -75,6 +82,7 @@ public class GossipAgent extends SimEntity {
         refreshLocalEntry(now);
         sendSnapshot(now);
         logSnapshot(now);
+        pushViewToDecision(now);
         double interval = config.getGossip().getIntervalSec();
         send(getId(), interval, SimulationEvents.EVT_GOSSIP_TICK);
     }
@@ -90,6 +98,11 @@ public class GossipAgent extends SimEntity {
         msg.setTimestamp(now);
         msg.setSequence(sequence++);
         msg.setStateTable(new ArrayList<>(freshEntries(now)));
+        try {
+            MetricsSink.get().recordGossipBytes(mapper.writeValueAsBytes(msg).length);
+        } catch (IOException e) {
+            // If serialization fails, skip accounting but continue sending.
+        }
         send(neighborAgentId, 0.0, SimulationEvents.EVT_GOSSIP_MESSAGE, msg);
     }
 
@@ -110,6 +123,7 @@ public class GossipAgent extends SimEntity {
                 stateTable.put(incoming.getNodeId(), copy(incoming));
             }
         }
+        pushViewToDecision(now);
     }
 
     private void refreshLocalEntry(double now) {
@@ -162,6 +176,10 @@ public class GossipAgent extends SimEntity {
         this.neighborAgentId = neighborAgentId;
     }
 
+    public void setDecisionAgentId(int decisionAgentId) {
+        this.decisionAgentId = decisionAgentId;
+    }
+
     public void updateLocalState(FogNodeState state) {
         if (state == null || state.getNodeId() != fogNodeId) {
             return;
@@ -171,6 +189,23 @@ public class GossipAgent extends SimEntity {
 
     public Map<Integer, FogNodeState> freshView() {
         double now = CloudSim.clock();
+        Map<Integer, FogNodeState> fresh = new HashMap<>();
+        for (FogNodeState state : stateTable.values()) {
+            if (!state.isStale(now, stalenessSeconds)) {
+                fresh.put(state.getNodeId(), copy(state));
+            }
+        }
+        return fresh;
+    }
+
+    private void pushViewToDecision(double now) {
+        if (decisionAgentId < 0) {
+            return;
+        }
+        send(decisionAgentId, 0.0, SimulationEvents.EVT_GOSSIP_VIEW, freshView(now));
+    }
+
+    public Map<Integer, FogNodeState> freshView(double now) {
         Map<Integer, FogNodeState> fresh = new HashMap<>();
         for (FogNodeState state : stateTable.values()) {
             if (!state.isStale(now, stalenessSeconds)) {
