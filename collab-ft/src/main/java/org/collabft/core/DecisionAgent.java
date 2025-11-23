@@ -317,11 +317,11 @@ public class DecisionAgent extends SimEntity {
             log.setDeadlineMet(deadlineMet);
             MetricsSink.get().recordMigration(log);
         }
-        double bidCost = plan != null ? plan.bidCost() : cloudBidCost(result.profile());
-        PaymentReport pay = paymentManager.createPayment(fogNodeId, result.targetFogId(), result.profile(),
-                result.completedAt(), bidCost, result.deadlineMet());
-        send(CloudSim.getEntityId("decision-agent-" + fogNodeId), 0.0, SimulationEvents.EVT_PAYMENT, pay);
-        if (result.targetFogId() >= 0) {
+        if (result.isMigration() && result.targetFogId() >= 0 && result.targetFogId() != fogNodeId) {
+            double bidCost = plan != null ? plan.bidCost() : cloudBidCost(result.profile());
+            PaymentReport pay = paymentManager.createPayment(fogNodeId, result.targetFogId(), result.profile(),
+                    result.completedAt(), bidCost, result.deadlineMet());
+            send(CloudSim.getEntityId("decision-agent-" + fogNodeId), 0.0, SimulationEvents.EVT_PAYMENT, pay);
             send(CloudSim.getEntityId("decision-agent-" + result.targetFogId()), 0.0, SimulationEvents.EVT_PAYMENT, pay);
         }
     }
@@ -330,7 +330,11 @@ public class DecisionAgent extends SimEntity {
         if (payment == null) {
             return;
         }
-        MetricsSink.get().recordPayment(payment);
+        // Only log payments once: on the payer node, to the remote executor.
+        if (payment.getPayerFogId() == fogNodeId && payment.getPayeeFogId() >= 0
+                && payment.getPayeeFogId() != payment.getPayerFogId()) {
+            MetricsSink.get().recordPayment(payment);
+        }
         paymentManager.applyLocalWallet(payment, fogNodeId);
         paymentManager.updateReputation(payment);
     }
