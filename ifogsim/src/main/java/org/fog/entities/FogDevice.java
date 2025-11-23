@@ -19,6 +19,8 @@ import org.fog.entities.container.ContainerState;
 import org.fog.mobilitydata.Clustering;
 import org.fog.policy.AppModuleAllocationPolicy;
 import org.fog.scheduler.StreamOperatorScheduler;
+import org.fog.scheduler.server.FogServerScheduler;
+import org.fog.scheduler.server.LeastLoadedServerScheduler;
 import org.fog.utils.*;
 import org.json.simple.JSONObject;
 
@@ -90,11 +92,8 @@ public class FogDevice extends PowerDatacenter implements ContainerHost {
     protected boolean isClusterLinkBusy; //Flag denoting whether the link connecting to cluster from this FogDevice is busy
     protected double clusterLinkBandwidth;
 
-    private final List<ContainerInstance> containerInstances = new ArrayList<>();
-    private double containerCpuAllocated;
-    private long containerRamAllocated;
-    private long containerBwAllocated;
-    private long containerStorageAllocated;
+    private final List<FogServer> servers = new ArrayList<>();
+    private FogServerScheduler serverScheduler = new LeastLoadedServerScheduler();
 
 
     public FogDevice(
@@ -151,7 +150,7 @@ public class FogDevice extends PowerDatacenter implements ContainerHost {
 
         clusterTupleQueue = new LinkedList<>();
         setClusterLinkBusy(false);
-
+        ensureInternalServersReady();
     }
 
     public FogDevice(
@@ -239,6 +238,7 @@ public class FogDevice extends PowerDatacenter implements ContainerHost {
 
         clusterTupleQueue = new LinkedList<>();
         setClusterLinkBusy(false);
+        ensureInternalServersReady();
     }
 
     /**
@@ -250,6 +250,71 @@ public class FogDevice extends PowerDatacenter implements ContainerHost {
      */
     protected void registerOtherEntity() {
 
+    }
+
+    private void ensureInternalServersReady() {
+        if (!servers.isEmpty()) {
+            return;
+        }
+        if (getHostList() == null || getHostList().isEmpty()) {
+            return;
+        }
+        PowerHost host = getHost();
+        if (host == null) {
+            return;
+        }
+        FogServer defaultServer = new FogServer(
+                getName() + "-server0",
+                host.getTotalMips(),
+                host.getRam(),
+                host.getStorage(),
+                host.getBw());
+        addServer(defaultServer);
+    }
+
+    public List<FogServer> getServers() {
+        ensureInternalServersReady();
+        return Collections.unmodifiableList(servers);
+    }
+
+    public void addServer(FogServer server) {
+        if (server == null) {
+            return;
+        }
+        server.setOwner(this);
+        servers.add(server);
+    }
+
+    public void setServers(List<FogServer> serverList) {
+        servers.clear();
+        if (serverList == null) {
+            return;
+        }
+        for (FogServer server : serverList) {
+            addServer(server);
+        }
+    }
+
+    public FogServer getServerById(String serverId) {
+        if (serverId == null) {
+            return null;
+        }
+        for (FogServer server : servers) {
+            if (serverId.equals(server.getId())) {
+                return server;
+            }
+        }
+        return null;
+    }
+
+    public FogServerScheduler getServerScheduler() {
+        return serverScheduler;
+    }
+
+    public void setServerScheduler(FogServerScheduler serverScheduler) {
+        if (serverScheduler != null) {
+            this.serverScheduler = serverScheduler;
+        }
     }
 
     @Override
@@ -307,6 +372,9 @@ public class FogDevice extends PowerDatacenter implements ContainerHost {
                 //This message is received by the devices to start their clustering
                 processClustering(this.getParentId(), this.getId(), ev);
                 break;
+            case FogEvents.SERVER_STATE_CHANGE:
+                handleServerStateChange((FogServerStateChange) ev.getData());
+                break;
             default:
                 break;
         }
@@ -337,6 +405,57 @@ public class FogDevice extends PowerDatacenter implements ContainerHost {
 
         sendNow(getId(), FogEvents.APP_SUBMIT, app);
         sendNow(getId(), FogEvents.LAUNCH_MODULE, appModule);
+    }
+
+    private void handleServerStateChange(FogServerStateChange change) {
+        if (change == null) {
+            return;
+        }
+        ensureInternalServersReady();
+        List<FogServer> targets = new ArrayList<>();
+        if (change.isApplyToAllServers()) {
+            targets.addAll(servers);
+        } else {
+            FogServer server = getServerById(change.getServerId());
+            if (server != null) {
+                targets.add(server);
+            }
+        }
+        for (FogServer server : targets) {
+            FogServerHealthState targetState = change.getTargetState();
+            server.setHealthState(targetState);
+            switch (targetState) {
+                case HEALTHY:
+                    System.out.printf("[t=%.2f] %s server %s recovered%n",
+                            CloudSim.clock(), getName(), server.getId());
+                    break;
+                case PREDICTED_FAIL:
+                    System.out.printf("[t=%.2f] %s predicts failure on server %s%n",
+                            CloudSim.clock(), getName(), server.getId());
+                    drainServer(server, false);
+                    break;
+                case FAILED:
+                    System.out.printf("[t=%.2f] %s server %s failed%n",
+                            CloudSim.clock(), getName(), server.getId());
+                    drainServer(server, true);
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    private void drainServer(FogServer server, boolean failureTriggered) {
+        List<ContainerInstance> hosted = server.snapshotContainers();
+        for (ContainerInstance container : hosted) {
+            boolean migrated = relocateContainerWithinNode(container, server, null);
+            if (!migrated && failureTriggered) {
+                container.markFailed();
+                server.deallocateContainer(container);
+                System.out.printf("[t=%.2f] %s container %s failed due to unavailable capacity after %s failure%n",
+                        CloudSim.clock(), getName(), container.getName(), server.getId());
+            }
+        }
     }
 
     /**
@@ -940,115 +1059,228 @@ public class FogDevice extends PowerDatacenter implements ContainerHost {
 
     @Override
     public double getTotalCpuMips() {
-        return getHost().getTotalMips();
+        ensureInternalServersReady();
+        double total = 0;
+        for (FogServer server : servers) {
+            total += server.getTotalCpuMips();
+        }
+        return total;
     }
 
     @Override
     public double getAvailableCpuMips() {
-        return Math.max(0, getTotalCpuMips() - containerCpuAllocated);
+        double total = 0;
+        for (FogServer server : getOperationalServers()) {
+            total += server.getAvailableCpuMips();
+        }
+        return total;
     }
 
     @Override
     public long getTotalRam() {
-        return getHost().getRam();
+        ensureInternalServersReady();
+        long total = 0;
+        for (FogServer server : servers) {
+            total += server.getTotalRam();
+        }
+        return total;
     }
 
     @Override
     public long getAvailableRam() {
-        return Math.max(0, getTotalRam() - containerRamAllocated);
+        long total = 0;
+        for (FogServer server : getOperationalServers()) {
+            total += server.getAvailableRam();
+        }
+        return total;
     }
 
     @Override
     public long getTotalBw() {
-        return getHost().getBw();
+        ensureInternalServersReady();
+        long total = 0;
+        for (FogServer server : servers) {
+            total += server.getTotalBw();
+        }
+        return total;
     }
 
     @Override
     public long getAvailableBw() {
-        return Math.max(0, getTotalBw() - containerBwAllocated);
+        long total = 0;
+        for (FogServer server : getOperationalServers()) {
+            total += server.getAvailableBw();
+        }
+        return total;
     }
 
     @Override
     public long getTotalStorage() {
-        return getHost().getStorage();
+        ensureInternalServersReady();
+        long total = 0;
+        for (FogServer server : servers) {
+            total += server.getTotalStorage();
+        }
+        return total;
     }
 
     @Override
     public long getAvailableStorage() {
-        return Math.max(0, getTotalStorage() - containerStorageAllocated);
+        long total = 0;
+        for (FogServer server : getOperationalServers()) {
+            total += server.getAvailableStorage();
+        }
+        return total;
     }
 
     @Override
     public List<ContainerInstance> getContainers() {
-        return Collections.unmodifiableList(containerInstances);
+        ensureInternalServersReady();
+        List<ContainerInstance> instances = new ArrayList<>();
+        for (FogServer server : servers) {
+            instances.addAll(server.getContainers());
+        }
+        return Collections.unmodifiableList(instances);
     }
 
     @Override
     public boolean canHost(ContainerInstance container) {
-        return getAvailableCpuMips() >= container.getCpuDemand()
-                && getAvailableRam() >= container.getRamDemand()
-                && getAvailableBw() >= container.getBandwidthDemand()
-                && getAvailableStorage() >= container.getStorageDemand();
+        ensureInternalServersReady();
+        for (FogServer server : getOperationalServers()) {
+            if (server.canHost(container)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     public boolean allocateContainer(ContainerInstance container) {
-        if (!canHost(container)) {
+        ensureInternalServersReady();
+        List<FogServer> candidates = getOperationalServers();
+        FogServer target = serverScheduler.selectServer(this, container, candidates);
+        if (target == null) {
             return false;
         }
-        containerInstances.add(container);
-        containerCpuAllocated += container.getCpuDemand();
-        containerRamAllocated += container.getRamDemand();
-        containerBwAllocated += container.getBandwidthDemand();
-        containerStorageAllocated += container.getStorageDemand();
-        container.assignHost(this, CloudSim.clock());
-        return true;
+        boolean allocated = target.allocateContainer(container);
+        if (allocated) {
+            System.out.printf("[t=%.2f] %s scheduled container %s on server %s%n",
+                    CloudSim.clock(), getName(), container.getName(), target.getId());
+        }
+        return allocated;
     }
 
     @Override
     public void deallocateContainer(ContainerInstance container) {
-        if (containerInstances.remove(container)) {
-            releaseContainerResources(container);
+        FogServer server = findServerHosting(container);
+        if (server != null) {
+            server.deallocateContainer(container);
         }
     }
 
     @Override
     public void pauseContainer(ContainerInstance container) {
-        container.pause();
+        FogServer server = findServerHosting(container);
+        if (server != null) {
+            server.pauseContainer(container);
+        }
     }
 
     @Override
     public void resumeContainer(ContainerInstance container) {
-        container.resume(CloudSim.clock());
+        FogServer server = findServerHosting(container);
+        if (server != null) {
+            server.resumeContainer(container);
+        }
     }
 
     @Override
     public void updateContainers(double currentTime) {
-        Iterator<ContainerInstance> iterator = containerInstances.iterator();
-        while (iterator.hasNext()) {
-            ContainerInstance container = iterator.next();
-            if (container.getContainerState() == ContainerState.MIGRATING || container.getContainerState() == ContainerState.PAUSED) {
-                continue;
-            }
-            if (container.getContainerState() == ContainerState.COMPLETED || container.getContainerState() == ContainerState.FAILED) {
-                iterator.remove();
-                releaseContainerResources(container);
-                continue;
-            }
-            boolean finished = container.updateExecution(currentTime, container.getCpuDemand(), getTotalCpuMips());
-            if (finished) {
-                iterator.remove();
-                releaseContainerResources(container);
-            }
+        ensureInternalServersReady();
+        for (FogServer server : servers) {
+            server.updateContainers(currentTime);
         }
     }
 
-    private void releaseContainerResources(ContainerInstance container) {
-        containerCpuAllocated = Math.max(0, containerCpuAllocated - container.getCpuDemand());
-        containerRamAllocated = Math.max(0, containerRamAllocated - container.getRamDemand());
-        containerBwAllocated = Math.max(0, containerBwAllocated - container.getBandwidthDemand());
-        containerStorageAllocated = Math.max(0, containerStorageAllocated - container.getStorageDemand());
-        container.detachHost();
+    public boolean migrateContainerWithinNode(ContainerInstance container) {
+        return migrateContainerWithinNode(container, null);
+    }
+
+    public boolean migrateContainerWithinNode(ContainerInstance container, String targetServerId) {
+        ensureInternalServersReady();
+        FogServer source = findServerHosting(container);
+        if (source == null) {
+            return false;
+        }
+        FogServer destination = targetServerId != null ? getServerById(targetServerId) : null;
+        if (destination != null && destination.getHealthState() == FogServerHealthState.FAILED) {
+            destination = null;
+        }
+        return relocateContainerWithinNode(container, source, destination);
+    }
+
+    private FogServer findServerHosting(ContainerInstance container) {
+        if (container == null) {
+            return null;
+        }
+        for (FogServer server : servers) {
+            if (server.contains(container)) {
+                return server;
+            }
+        }
+        return null;
+    }
+
+    private List<FogServer> getOperationalServers() {
+        ensureInternalServersReady();
+        List<FogServer> available = new ArrayList<>();
+        for (FogServer server : servers) {
+            if (server.getHealthState() != FogServerHealthState.FAILED) {
+                available.add(server);
+            }
+        }
+        return available;
+    }
+
+    private List<FogServer> getOperationalServersExcluding(FogServer excluded) {
+        List<FogServer> available = getOperationalServers();
+        available.remove(excluded);
+        return available;
+    }
+
+    private boolean relocateContainerWithinNode(ContainerInstance container, FogServer source, FogServer preferredDestination) {
+        FogServer destination = preferredDestination;
+        if (destination == null || destination == source || (destination != null && !destination.canHost(container))) {
+            List<FogServer> candidates = getOperationalServersExcluding(source);
+            destination = serverScheduler.selectServer(this, container, candidates);
+        }
+        if (destination == null) {
+            return false;
+        }
+        if (source != null) {
+            source.pauseContainer(container);
+            container.markMigrating();
+            container.createCheckpoint(CloudSim.clock());
+            source.deallocateContainer(container);
+        }
+        boolean allocated = destination.allocateContainer(container);
+        if (allocated) {
+            destination.resumeContainer(container);
+            container.createCheckpoint(CloudSim.clock());
+            System.out.printf("[t=%.2f] %s migrated container %s from %s to %s%n",
+                    CloudSim.clock(),
+                    getName(),
+                    container.getName(),
+                    source != null ? source.getId() : "none",
+                    destination.getId());
+            return true;
+        }
+        if (source != null && source.getHealthState() != FogServerHealthState.FAILED) {
+            if (source.allocateContainer(container)) {
+                source.resumeContainer(container);
+            }
+        }
+        return false;
     }
 
     public int getParentId() {

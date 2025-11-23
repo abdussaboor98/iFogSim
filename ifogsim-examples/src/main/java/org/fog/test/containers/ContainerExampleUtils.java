@@ -9,6 +9,7 @@ import org.cloudbus.cloudsim.sdn.overbooking.BwProvisionerOverbooking;
 import org.cloudbus.cloudsim.sdn.overbooking.PeProvisionerOverbooking;
 import org.fog.entities.FogDevice;
 import org.fog.entities.FogDeviceCharacteristics;
+import org.fog.entities.FogServer;
 import org.fog.policy.AppModuleAllocationPolicy;
 import org.fog.scheduler.StreamOperatorScheduler;
 import org.fog.utils.Config;
@@ -93,6 +94,32 @@ final class ContainerExampleUtils {
                 1,
                 ratePerMips);
         fogDevice.setLevel(level);
+        fogDevice.setServers(createDefaultServers(nodeName, mips, ram, storage, bw));
         return fogDevice;
+    }
+
+    private static List<FogServer> createDefaultServers(String nodeName, long totalMips, int totalRam, long totalStorage, long totalBw) {
+        int serverCount;
+        if (totalMips >= 8000) {
+            serverCount = 4;
+        } else if (totalMips >= 4000) {
+            serverCount = 3;
+        } else {
+            serverCount = 2;
+        }
+        serverCount = Math.max(1, serverCount);
+
+        List<FogServer> servers = new ArrayList<>();
+        double mipsPerServer = (double) totalMips / serverCount;
+        long ramPerServer = Math.max(512, totalRam / serverCount);
+        long storagePerServer = Math.max(100000, totalStorage / serverCount);
+        long bwPerServer = Math.max(1000, totalBw / serverCount);
+
+        for (int i = 0; i < serverCount; i++) {
+            String serverId = nodeName + "-srv-" + i;
+            FogServer server = new FogServer(serverId, mipsPerServer, ramPerServer, storagePerServer, bwPerServer);
+            servers.add(server);
+        }
+        return servers;
     }
 }
