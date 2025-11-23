@@ -81,6 +81,9 @@ public final class MetricsSink {
         payload.put("migrationCount", migrations.size());
         payload.put("meanMigrationTime", meanMigrationTime());
         payload.put("slaViolationRatio", slaViolationRatio());
+        payload.put("localMigrations", phaseCount(MigrationLog.Phase.LOCAL));
+        payload.put("interFogMigrations", phaseCount(MigrationLog.Phase.INTER_FOG));
+        payload.put("cloudMigrations", phaseCount(MigrationLog.Phase.CLOUD));
         payload.put("networkOverheadBytes", gossipBytes + bidBytes);
         payload.put("gossipBytes", gossipBytes);
         payload.put("bidBytes", bidBytes);
@@ -123,6 +126,9 @@ public final class MetricsSink {
         payload.put("migrationCount", migrations.size());
         payload.put("meanMigrationTime", meanMigrationTime());
         payload.put("slaViolationRatio", slaViolationRatio());
+        payload.put("localMigrations", phaseCount(MigrationLog.Phase.LOCAL));
+        payload.put("interFogMigrations", phaseCount(MigrationLog.Phase.INTER_FOG));
+        payload.put("cloudMigrations", phaseCount(MigrationLog.Phase.CLOUD));
         payload.put("networkOverheadBytes", gossipBytes + bidBytes);
         payload.put("gossipBytes", gossipBytes);
         payload.put("bidBytes", bidBytes);
@@ -200,6 +206,16 @@ public final class MetricsSink {
         }
         double availability = 1.0 - downTime / simulationEndTime;
         return Math.max(0.0, Math.min(1.0, availability));
+    }
+
+    private int phaseCount(MigrationLog.Phase phase) {
+        int count = 0;
+        for (MigrationLog log : migrations) {
+            if (log.getPhase() == phase) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private double mean(List<Double> values) {
