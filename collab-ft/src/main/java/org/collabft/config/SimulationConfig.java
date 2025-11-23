@@ -15,6 +15,7 @@ public class SimulationConfig {
     private EconomicsConfig economics = new EconomicsConfig();
     private SlaConfig sla = new SlaConfig();
     private RandomConfig random = new RandomConfig();
+    private SimulationControl simulation = new SimulationControl();
 
     public TopologyConfig getTopology() {
         return topology;
@@ -70,6 +71,14 @@ public class SimulationConfig {
 
     public void setRandom(RandomConfig random) {
         this.random = random;
+    }
+
+    public SimulationControl getSimulation() {
+        return simulation;
+    }
+
+    public void setSimulation(SimulationControl simulation) {
+        this.simulation = simulation;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -488,6 +497,19 @@ public class SimulationConfig {
 
         public void setWorkloadSeed(long workloadSeed) {
             this.workloadSeed = workloadSeed;
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class SimulationControl {
+        private double durationSec = 0.0;
+
+        public double getDurationSec() {
+            return durationSec;
+        }
+
+        public void setDurationSec(double durationSec) {
+            this.durationSec = durationSec;
         }
     }
 }

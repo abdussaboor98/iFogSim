@@ -58,3 +58,6 @@ random:
   gossipSeed: 5678
   faultSeed: 91011
   workloadSeed: 121314
+
+simulation:
+  durationSec: 1800
