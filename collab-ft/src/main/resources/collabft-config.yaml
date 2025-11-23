@@ -1,5 +1,5 @@
 topology:
-  fogNodeCount: 3
+  fogNodeCount: 6
   serversPerFog: 3
   serverCpu: 10000
   serverMem: 16000
