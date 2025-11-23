@@ -1,0 +1,60 @@
+topology:
+  fogNodeCount: 3
+  serversPerFog: 3
+  serverCpu: 10000
+  serverMem: 16000
+  serverBw: 10000
+  cloudCapacityMultiplier: 5.0
+  edgeDevices:
+    - id: cam-1
+      fogNodeId: 0
+    - id: cam-2
+      fogNodeId: 1
+    - id: cam-3
+      fogNodeId: 2
+
+gossip:
+  intervalSec: 60
+  stalenessIntervals: 3
+
+fault:
+  poissonRatePerSec: 0.0033
+  maxActiveFaults: 2
+  predictionLeadTimeSec: 60
+  recoveryTimeSec: 600
+  seed: 42
+
+workload:
+  arrivalRatePerSec: 0.1
+  minCpu: 500
+  maxCpu: 1500
+  minMem: 256
+  maxMem: 1024
+  minBw: 100
+  maxBw: 500
+  minSizeMb: 50
+  maxSizeMb: 200
+  minDeadlineSec: 120
+  maxDeadlineSec: 600
+
+economics:
+  bidTimeoutSec: 5
+  bidFanoutK: 3
+  preselectThreshold: 0.3
+  tokenInitialBalance: 100
+  cloudBandwidthFactor: 0.7
+
+sla:
+  reliabilityWeight: 0.6
+  urgencyWeight: 0.4
+  penaltyEta: 1.0
+  reputationInit: 0.5
+  reputationMin: 0.0
+  reputationMax: 1.0
+  urgencyScale: 1.0
+
+random:
+  masterSeed: 1234
+  gossipSeed: 5678
+  faultSeed: 91011
+  workloadSeed: 121314

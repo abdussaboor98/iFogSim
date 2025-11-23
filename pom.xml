@@ -11,6 +11,7 @@
     <modules>
         <module>ifogsim</module>
         <module>ifogsim-examples</module>
+        <module>collab-ft</module>
     </modules>
 
     <properties>
