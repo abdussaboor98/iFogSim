@@ -1,10 +1,10 @@
 topology:
   fogNodeCount: 6
-  serversPerFog: 3
+  serversPerFog: 1
   serverCpu: 10000
   serverMem: 16000
   serverBw: 10000
-  cloudCapacityMultiplier: 5.0
+  cloudCapacityMultiplier: 3.0
   edgeDevices:
     - id: cam-1
       fogNodeId: 0
@@ -25,7 +25,7 @@ fault:
   seed: 42
 
 workload:
-  arrivalRatePerSec: 0.1
+  arrivalRatePerSec: 0.35
   minCpu: 500
   maxCpu: 1500
   minMem: 256
@@ -39,10 +39,10 @@ workload:
 
 economics:
   bidTimeoutSec: 5
-  bidFanoutK: 3
-  preselectThreshold: 0.3
+  bidFanoutK: 4
+  preselectThreshold: 0.2
   tokenInitialBalance: 100
-  cloudBandwidthFactor: 0.7
+  cloudBandwidthFactor: 0.4
 
 sla:
   reliabilityWeight: 0.6
@@ -60,4 +60,4 @@ random:
   workloadSeed: 121314
 
 simulation:
-  durationSec: 1800
+  durationSec: 18000

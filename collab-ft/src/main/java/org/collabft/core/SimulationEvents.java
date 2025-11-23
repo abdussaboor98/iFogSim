@@ -15,6 +15,8 @@ public enum SimulationEvents implements CloudSimTags {
     EVT_BID_REQUEST,
     EVT_BID_RESPONSE,
     EVT_PAYMENT,
+    EVT_MIGRATION_PLACE,
     EVT_MIGRATION_COMPLETE,
+    EVT_TASK_COMPLETE,
     EVT_GOSSIP_MESSAGE
 }

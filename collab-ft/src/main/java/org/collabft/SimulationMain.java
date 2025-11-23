@@ -5,6 +5,7 @@ import org.collabft.config.ConfigLoader;
 import org.collabft.config.SimulationConfig;
 import org.collabft.core.DecisionAgent;
 import org.collabft.core.FaultScheduler;
+import org.collabft.core.FaultPredictor;
 import org.collabft.core.GossipAgent;
 import org.collabft.core.IfogBuilder;
 import org.collabft.core.MetricsSink;
@@ -54,6 +55,7 @@ public final class SimulationMain {
             DecisionAgent decision = new DecisionAgent(i, servers, config);
             decisionAgents.add(decision);
             decisionIds.add(decision.getId());
+            decision.seedGossipView(deployment.getFogStates());
         }
         for (int i = 0; i < fogCount; i++) {
             gossipAgents.get(i).setDecisionAgentId(decisionAgents.get(i).getId());
@@ -69,7 +71,8 @@ public final class SimulationMain {
         wireGossipNeighbors(gossipAgents);
 
         WorkloadAgent workloadAgent = new WorkloadAgent(config, decisionIds);
-        FaultScheduler faultScheduler = new FaultScheduler(config, decisionIds);
+        FaultPredictor predictor = new FaultPredictor(config);
+        FaultScheduler faultScheduler = predictor.buildScheduler(decisionIds);
 
         double simDuration = estimateSimulationDuration(config);
         if (simDuration > 0) {

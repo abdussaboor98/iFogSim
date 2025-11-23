@@ -242,7 +242,7 @@ public class GossipAgent extends SimEntity {
         dest.setMemUsed(server.getMemUsed());
         dest.setBwUsed(server.getBwUsed());
         dest.setCrashed(server.isCrashed());
-        dest.setContainerId(server.getContainerId());
+        dest.setContainerIds(server.getContainerIds());
         dest.setTimestamp(server.getTimestamp());
         return dest;
     }

@@ -5,6 +5,7 @@ import org.cloudbus.cloudsim.core.SimEntity;
 import org.cloudbus.cloudsim.core.SimEvent;
 import org.collabft.config.SimulationConfig;
 import org.collabft.model.ContainerProfile;
+import org.collabft.model.ContainerTask;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -74,7 +75,7 @@ public class WorkloadAgent extends SimEntity {
         double size = uniform(workload.getMinSizeMb(), workload.getMaxSizeMb());
         double deadline = uniform(workload.getMinDeadlineSec(), workload.getMaxDeadlineSec());
         String id = "c-" + fogId + "-" + (++containerSeq);
-        return new ContainerProfile(id, fogId, cpu, mem, bw, size, deadline, arrivalTime);
+        return new ContainerTask(new ContainerProfile(id, fogId, cpu, mem, bw, size, deadline, arrivalTime));
     }
 
     private double nextInterArrival(double ratePerSec) {

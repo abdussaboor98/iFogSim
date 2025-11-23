@@ -16,7 +16,7 @@ public class ServerState {
     private double bwTotal;
     private double bwUsed;
     private boolean crashed;
-    private String containerId;
+    private final java.util.List<String> containerIds = new java.util.ArrayList<>();
     private double timestamp;
 
     public ServerState() {
@@ -103,20 +103,23 @@ public class ServerState {
         this.crashed = crashed;
     }
 
-    public String getContainerId() {
-        return containerId;
-    }
-
-    public void setContainerId(String containerId) {
-        this.containerId = containerId;
-    }
-
     public double getTimestamp() {
         return timestamp;
     }
 
     public void setTimestamp(double timestamp) {
         this.timestamp = timestamp;
+    }
+
+    public java.util.List<String> getContainerIds() {
+        return java.util.Collections.unmodifiableList(containerIds);
+    }
+
+    public void setContainerIds(java.util.List<String> ids) {
+        containerIds.clear();
+        if (ids != null) {
+            containerIds.addAll(ids);
+        }
     }
 
     public double cpuLoad() {
@@ -148,7 +151,7 @@ public class ServerState {
     }
 
     public boolean hasContainer() {
-        return containerId != null && !containerId.isEmpty();
+        return !containerIds.isEmpty();
     }
 
     public boolean canHost(ContainerProfile profile) {
@@ -157,8 +160,32 @@ public class ServerState {
         }
         return cpuLoad() + safeRatio(profile.getRequiredCpu(), cpuTotal) <= 1.0
                 && memLoad() + safeRatio(profile.getRequiredMem(), memTotal) <= 1.0
-                && bwLoad() + safeRatio(profile.getRequiredBw(), bwTotal) <= 1.0
-                && !hasContainer();
+                && bwLoad() + safeRatio(profile.getRequiredBw(), bwTotal) <= 1.0;
+    }
+
+    public void addContainer(ContainerProfile profile) {
+        if (profile == null) {
+            return;
+        }
+        containerIds.add(profile.getId());
+        cpuUsed += profile.getRequiredCpu();
+        memUsed += profile.getRequiredMem();
+        bwUsed += profile.getRequiredBw();
+    }
+
+    public void removeContainer(ContainerProfile profile) {
+        if (profile == null) {
+            return;
+        }
+        if (containerIds.remove(profile.getId())) {
+            cpuUsed = Math.max(0.0, cpuUsed - profile.getRequiredCpu());
+            memUsed = Math.max(0.0, memUsed - profile.getRequiredMem());
+            bwUsed = Math.max(0.0, bwUsed - profile.getRequiredBw());
+        }
+    }
+
+    public String peekContainerId() {
+        return containerIds.isEmpty() ? null : containerIds.get(0);
     }
 
     private double safeRatio(double used, double total) {
