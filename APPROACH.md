@@ -71,17 +71,11 @@ When a task arrives, the fog node selects a server using a feasibility test and 
 
 Feasibility Rule: A server is a valid candidate if it can accept the new container $(R_{cpu}, R_{mem}, R_{bw})$ without exceeding total capacity.
 
-$$\frac{CPU_{used} + R_{cpu}}{CPU_{total}} \le 1$$
+\frac{CPU_{used} + R_{cpu}}{CPU_{total}} \le 1
 
-(1)
+\frac{MEM_{used} + R_{mem}}{MEM_{total}} \le 1
 
-$$\frac{MEM_{used} + R_{mem}}{MEM_{total}} \le 1$$
-
-(2)
-
-$$\frac{BW_{used} + R_{bw}}{BW_{total}} \le 1$$
-
-(3)
+\frac{BW_{used} + R_{bw}}{BW_{total}} \le 1
 
 Here, $CPU_{used}$, $MEM_{used}$, and $BW_{used}$ represent the aggregate load of all currently active containers on the server.
 
@@ -137,23 +131,15 @@ The Decision Engine first attempts to resolve the fault locally by scanning all 
 
 Feasibility Rule: A server is considered a valid candidate only if it can accommodate the container's additional load on top of its current aggregate workload without exceeding 100% utilization in any resource dimension. A server is feasible if and only if all the following conditions are met:
 
-$$\frac{CPU_{used} + R_{cpu}}{CPU_{total}} \le 1$$
+\frac{CPU_{used} + R_{cpu}}{CPU_{total}} \le 1
 
-(4)
+\frac{MEM_{used} + R_{mem}}{MEM_{total}} \le 1
 
-$$\frac{MEM_{used} + R_{mem}}{MEM_{total}} \le 1$$
-
-(5)
-
-$$\frac{BW_{used} + R_{bw}}{BW_{total}} \le 1$$
-
-(6)
+\frac{BW_{used} + R_{bw}}{BW_{total}} \le 1
 
 Selection Rule (Residual Capacity Maximization): Among the set of feasible servers, the system selects the candidate whose post-placement state offers the highest remaining capacity to prevent saturation of the shared resource pool. The residual score is computed as:
 
-$$residual\_score = (1 - L_{cpu}) + (1 - L_{mem}) + (1 - L_{bw})$$
-
-(7)
+residual_score = (1 - L_{cpu}) + (1 - L_{mem}) + (1 - L_{bw})
 
 Note that $L_{cpu}$, $L_{mem}$, and $L_{bw}$ here represent the projected utilization after adding the new container.
 
@@ -165,41 +151,29 @@ If local resources are insufficient for a specific container, the system initiat
 
 Scoring: The originating node first converts the raw aggregate load metrics from the gossip state into Free Capacities:
 
-$$CPU_{free} = 1 - L_{cpu}, \quad MEM_{free} = 1 - L_{mem}, \quad BW_{free} = 1 - L_{bw}$$
-
-(8)
+CPU_{free} = 1 - L_{cpu}, \quad MEM_{free} = 1 - L_{mem}, \quad BW_{free} = 1 - L_{bw}
 
 It then calculates a suitability score $(S_{node})$ for each neighboring fog node. This score reflects the node's overall ability to host additional containers in its shared pool:
 
-$$S_{node} = \alpha \times CPU_{free} + \beta \times MEM_{free} + \gamma \times BW_{free}$$
-
-(9)
+S_{node} = \alpha \times CPU_{free} + \beta \times MEM_{free} + \gamma \times BW_{free}
 
 The cloud is assigned a static score to represent its high availability but limited bandwidth (WAN constraint):
 
-$$S_{cloud} = \alpha \times 1.0 + \beta \times 1.0 + \gamma \times 0.7$$
-
-(10)
+S_{cloud} = \alpha \times 1.0 + \beta \times 1.0 + \gamma \times 0.7
 
 Here, $\alpha$, $\beta$, and $\gamma$ are tunable weights derived dynamically through the established four-step process:
 
 Step 1: Requirement Proportions. First, normalized weights are computed based on the container's resource profile $(R_{cpu}, R_{mem}, R_{bw})$:
 
-$$p_{cpu} = \frac{R_{cpu}}{R_{total}}, \quad p_{mem} = \frac{R_{mem}}{R_{total}}, \quad p_{bw} = \frac{R_{bw}}{R_{total}}$$
-
-(11)
+p_{cpu} = \frac{R_{cpu}}{R_{total}}, \quad p_{mem} = \frac{R_{mem}}{R_{total}}, \quad p_{bw} = \frac{R_{bw}}{R_{total}}
 
 Where $R_{total} = R_{cpu} + R_{mem} + R_{bw}$.
 
 Step 2: Deadline-Driven Urgency. To prioritize migration speed when time is critical, an urgency factor $(U_{norm})$ is calculated:
 
-$$U = \frac{1}{T_{deadline} - T_{now} + \epsilon}$$
+U = \frac{1}{T_{deadline} - T_{now} + \epsilon}
 
-(12)
-
-$$U_{norm} = \min(1, U \cdot k)$$
-
-(13)
+U_{norm} = \min(1, U \cdot k)
 
 Here, $\epsilon$ is a small safety constant, and $k$ (typically 0.1) scales the urgency to the range 
 
@@ -209,17 +183,13 @@ $$0, 1$$
 
 Step 3: Bandwidth Weight Adjustment. Since migration delay is critical under tight deadlines, the bandwidth weight ($\gamma$) is increased proportionally to the urgency:
 
-$$\dot{\gamma} = p_{bw} + U_{norm} \cdot (1 - p_{bw})$$
-
-(14)
+\dot{\gamma} = p_{bw} + U_{norm} \cdot (1 - p_{bw})
 
 This formula shifts $\gamma$ toward 1 as the deadline approaches.
 
 Step 4: Weight Redistribution. The remaining weight $W = 1 - \gamma$ is distributed between CPU and Memory based on their original proportions:
 
-$$\alpha = W \cdot \frac{p_{cpu}}{p_{cpu} + p_{mem}}, \quad \beta = W \cdot \frac{p_{mem}}{p_{cpu} + p_{mem}}$$
-
-(15)
+\alpha = W \cdot \frac{p_{cpu}}{p_{cpu} + p_{mem}}, \quad \beta = W \cdot \frac{p_{mem}}{p_{cpu} + p_{mem}}
 
 Ranking and Thresholding: The nodes are ranked based on their scores $(S_{node})$. The system employs an empirical selection threshold of 0.3, meaning a node must have at least 30% usable aggregated capacity to be considered.
 
@@ -237,41 +207,29 @@ Selected candidates generate and transmit bids back to the faulty node. The bid 
 
 $$C_{bid} = C_{res} + C_{risk} + C_{mig}$$
 
-(16)
-
 The components are calculated using the following specific economic models:
 
 Resource Cost $(C_{res})$: This represents the direct monetary value of the resources allocated to the specific container. We use simple unit constants $(unit\_cost)$ to standardize the pricing:
 
-$$C_{res} = (R_{cpu} \times 1.0) + (R_{mem} \times 0.5) + (R_{bw} \times 0.2)$$
-
-(17)
+C_{res} = (R_{cpu} \times 1.0) + (R_{mem} \times 0.5) + (R_{bw} \times 0.2)
 
 Where 1.0, 0.5, and 0.2 represent the unit costs for CPU, RAM, and Bandwidth respectively.
 
 Risk Cost $(C_{risk})$: This accounts for the reliability of the bidding node. A heavily loaded node is statistically more likely to fail, so it adds a "risk premium" to its bid to discourage selection unless necessary.
 
-$$C_{risk} = p_{fail} \times 5.0$$
-
-(18)
+C_{risk} = p_{fail} \times 5.0
 
 Where the failure probability $(p_{fail})$ is modeled simply as a function of the current aggregate CPU load $(L_{cpu})$ of the server intended to host the container:
 
-$$p_{fail} = L_{cpu} \times 0.5$$
-
-(19)
+p_{fail} = L_{cpu} \times 0.5
 
 Migration Cost $(C_{mig})$: This covers the overhead of moving the container state. It is composed of the network transfer cost and the restoration cost:
 
 Defined as:
 
-$$C_{mig} = C_{transfer} + C_{restore}$$
+C_{mig} = C_{transfer} + C_{restore}
 
-(20)
-
-$$C_{transfer} = \frac{S_{container}}{BW_{link}}, \quad C_{restore} = 0.1 \times S_{container}$$
-
-(21)
+C_{transfer} = \frac{S_{container}}{BW_{link}}, \quad C_{restore} = 0.1 \times S_{container}
 
 Where $BW_{link}$ is the available bandwidth of the link between the faulty node and the bidding node.
 
@@ -280,8 +238,6 @@ Phase 4: Evaluation at Faulty Node
 The originating node (buyer) collects the bids and calculates a final evaluation cost $(C_{evaluated})$ for each bidder. This step incorporates the historical reliability of the bidder.
 
 $$C_{evaluated} = C_{bid} + C_{sla}$$
-
-(22)
 
 Where:
 
@@ -301,25 +257,17 @@ $$0, 1$$
 
 Resource Intensity $(R_{norm})$: Measures the magnitude of resources required by the container relative to a system-wide maximum $(R_{max})$
 
-$$R_{norm} = \frac{R_{cpu} + R_{mem} + R_{bw}}{R_{max}}$$
-
-(23)
+R_{norm} = \frac{R_{cpu} + R_{mem} + R_{bw}}{R_{max}}
 
 Deadline Urgency $(U_{norm})$: Measures how strict the deadline is relative to the time of the request $(T_{now})$. To prevent values from exploding as the slack approaches zero, we use a normalized bounded form:
 
-$$U = \frac{1}{T_{deadline} - T_{now} + \epsilon}$$
+U = \frac{1}{T_{deadline} - T_{now} + \epsilon}
 
-(24)
-
-$$U_{norm} = \min(1, k \cdot U)$$
-
-(25)
+U_{norm} = \min(1, k \cdot U)
 
 Where $\epsilon$ is a small safety constant and $k$ (e.g., 0.1) is a scaling factor. The final $SLA_{value}$ combines these components using fixed weights $(w_{1}=0.6$ for resource intensity, $w_{2}=0.4$ for urgency):
 
-$$SLA_{value} = w_{1} \cdot R_{norm} + w_{2} \cdot U_{norm}$$
-
-(26)
+SLA_{value} = w_{1} \cdot R_{norm} + w_{2} \cdot U_{norm}
 
 This ensures that the metric remains bounded $(0 \le SLA_{value} \le 1)$, providing stability for the payment model.
 
@@ -327,15 +275,11 @@ Payment Processing: The originating node evaluates the SLA status based on the c
 
 If SLA Met $(T_{completion} \le T_{deadline})$: The node earns the bid price plus a reward proportional to the task difficulty.
 
-$$P = C_{bid} + SLA_{value}$$
-
-(27)
+P = C_{bid} + SLA_{value}
 
 If SLA Violated $(T_{completion} > T_{deadline})$: The node is penalized, receiving the bid price minus a weighted penalty.
 
-$$P = C_{bid} - \eta \cdot SLA_{value}$$
-
-(28)
+P = C_{bid} - \eta \cdot SLA_{value}
 
 Where $\eta$ is a penalty severity coefficient. Since $SLA_{value} \le 1$, the penalty is bounded, preventing excessive losses for the fog node.
 
@@ -437,36 +381,229 @@ Interval: 60 seconds
 
 Keeping the interval at 60 seconds introduces staleness, making distributed decisions imperfect and yielding more interesting results.
 
-References
+6. Experimental Setup for Comparative Evaluation
 
-A. Umer, M. Ali, A. I. Jehangiri, M. Bilal, and J. Shuja, "Multi-Objective Task-Aware Offloading and Scheduling Framework for Internet of Things Logistics," Sensors, vol. 24, no. 8, p. 2381, Apr. 2024.
+To rigorously evaluate the effectiveness of the proposed decentralized fog-layer migration framework, we design a controlled comparative experiment consisting of two distinct scheduling modes executed under identical system conditions. The primary objective is to isolate the impact of the scheduling architecture—distributed fog-layer decision-making versus centralized cloud-level orchestration—while eliminating variability from the underlying environment.
 
-A. Umer, M. Ali, and A. I. Jehangiri, "Fault tolerant and mobility-aware task offloading and scheduling model for IoT logistics," J. Supercomput., vol. 81, no. 11, p. 1203, July 2025.
+Mode 1 (Decentralized Fog-Layer Scheduling) executes the full proposed workflow, including ring-based gossip dissemination, distributed suitability scoring, bidding-based negotiation, inter-fog collaboration, and cloud fallback.
 
-T. Long, Y. Xia, M. Zhou, J. Li, Y. Ma, and Y. Al-Turki, "Fault-Tolerant Mobile Service Offloading in Mobile Edge Computing," IEEE Trans. Autom. Sci. Eng., vol. 22, pp. 17022-17033, 2025.
+Mode 2 (Centralized Cloud Scheduler) shifts all decision-making authority to the cloud. Gossip is disabled, bidding is removed, and migration requests are forwarded directly to the cloud, which selects the target node using a global view of the system state.
 
-N. S. S. Singh, A. N. Talib, K. H. Qader, N. Sharma, and Z. Feng, "Fault-Tolerance-Aware Flexible and Mobility-Aware Task Offloading Based on Machine Learning in Mobile Cloud Computing," Int. J. Data Sci. Anal., June 2025.
+To ensure scientific validity, both modes operate with the same topology, the same edge-generated task stream, the same resource profiles, and the same sequence of injected faults. This is enforced by fixing the simulation seed and reusing the exact workload and failure patterns across both runs. By keeping all external conditions constant and varying only the scheduling mechanism, the experiment provides a controlled environment in which performance differences—such as SLA adherence, migration latency, network overhead, and recovery efficiency—can be attributed solely to the architectural distinction between decentralized fog cooperation and centralized cloud control.
 
-V. Babaiyan and O. Bushehrian, "A deep-reinforcement-learning-based strategy selection approach for fault-tolerant offloading of delay-sensitive tasks in vehicular edge-cloud computing," J. Supercomput., vol. 81, no. 5, p. 708, Apr. 2025.
+7. Simulation-Ready YAML Template
 
-A. Taghinezhad-Niar and J. Taheri, "Fault-Tolerant Cost-Efficient Scheduling for Energy and Deadline-Constrained IoT Workflows in Edge-Cloud Continuum," IEEE Trans. Serv. Comput., pp. 1-12, 2025.
+Below is a complete, simulation-ready YAML configuration template for the system. It is structured so that iFogSim2 can load everything needed to test:
 
-B. Premalatha and P. Prakasam, "Optimal Energy-efficient Resource Allocation and Fault Tolerance scheme for task offloading in IoT-FoG Computing Networks," Comput. Netw., vol. 238, art. 110080, Jan. 2024.
+Distributed fog-level migration
 
-N. Rasouli, C. Klein, and E. Elmroth, "Fault Tolerance Infrastructure for Mission-Critical Mobile Edge Cloud Applications," in 2024 IEEE/ACM 17th International Conference on Utility and Cloud Computing (UCC), Dec. 2024, pp. 382-388.
+Inter-fog migration + cloud fallback
 
-A. Javed, J. Robert, K. Heljanko, and K. Främling, "IoTEF: A Federated Edge-Cloud Architecture for Fault-Tolerant IoT Applications," J. Grid Comput., vol. 18, no. 1, pp. 57-80, Mar. 2020.
+A second run with a centralized cloud scheduler
 
-A. Javed, K. Heljanko, A. Buda, and K. Främling, "CEFIOT: A fault-tolerant IoT architecture for edge and cloud," in 2018 IEEE 4th World Forum on Internet of Things (WF-IoT), Feb. 2018, pp. 813-818.
+It explicitly includes topology, servers, edge devices, workload/containers, gossip, fault model, migration logic, bidding, SLA/payment, and logging/reproducibility settings. This template can be used as-is or adapted with specific numeric values as needed.
 
-Y. Chen, X. Luo, P. Liang, J. Han, and Z. Xu, "Priority-based DAG task offloading and secondary resource allocation in IoT edge computing environments," Computing, vol. 106, no. 10, pp. 3229-3254, Oct. 2024.
+simulation:
+  name: "Collaborative_FT_EdgeFogCloud"
+  duration_seconds: 3600       # 1 hour simulation
+  random_seed: 42
+  mode: "distributed"          # options: distributed / centralized
+  logging_level: "INFO"
 
-X. Lu, H. Yang, P. Wang, Y. Feng, W. Zhang, and J. Tong, "Cescpra: A Cloud-Edge-Sensor Collaborative Proactive Reliability Assurance Technology," IEEE Sens. J., vol. 25, no. 4, pp. 7508-7518, Feb. 2025.
+topology:
+  cloud:
+    cpu_mips: 150000
+    ram_mb: 64000
+    bandwidth_mbps: 2000          # WAN bandwidth
+    latency_ms: 40                # fog -> cloud WAN latency
 
-J. Feng, Z. Liu, C. Wu, and Y. Ji, "Mobile Edge Computing for the Internet of Vehicles: Offloading Framework and Job Scheduling," IEEE Veh. Technol. Mag., vol. 14, no. 1, pp. 28-36, Mar. 2019.
+  fog_nodes:
+    count: 6
+    inter_fog_bandwidth_mbps: 5000
+    inter_fog_latency_ms: 5
 
-J. Edinger, M. Breitbach, N. Gabrisch, D. Schafer, C. Becker, and A. Rizk, "Decentralized Low-Latency Task Scheduling for Ad-Hoc Computing," in 2021 IEEE International Parallel and Distributed Processing Symposium (IPDPS), May 2021, pp. 776-785.
+    heterogeneity:
+      # Node 1 is the "super fog node"
+      node_1_multiplier: 3.0
 
-M.-N. Tran, X. T. Vu, and Y. Kim, "Proactive Stateful Fault-Tolerant System for Kubernetes Containerized Services," IEEE Access, vol. 10, pp. 102181-102194, 2022.
+    servers_per_node: 
+      default: 3
+      node_1: 4
 
-X. Li, Z. Zang, F. Shen, and Y. Sun, "Task Offloading Scheme Based on Improved Contract Net Protocol and Beetle Antennae Search Algorithm in Fog Computing Networks," Mob. Netw. Appl., vol. 25, no. 6, pp. 2517-2526, Dec. 2020.
+    server_config:
+      base_cpu_mips: 10000
+      base_ram_mb: 8192
+      base_bandwidth_mbps: 5000
+
+edge_devices:
+  devices_per_fog_node: 10
+  latency_to_fog_ms: 2
+  bandwidth_to_fog_mbps: 100
+
+  task_arrival:
+    model: "poisson"
+    rate_tasks_per_second: 0.25        # configurable
+    jitter_percent: 15
+
+workload:
+  container:
+    resource_profile_distribution:
+      cpu_mi:
+        min: 2000
+        max: 5000
+      ram_mb:
+        min: 150
+        max: 500
+      bandwidth_mbps:
+        min: 20
+        max: 50
+      container_size_mb:
+        min: 50
+        max: 200
+      deadline_seconds:
+        min: 10
+        max: 30
+
+    concurrency_constraint:
+      active_containers_per_server: 1   # or change to multi-container if desired
+
+gossip:
+  enabled: true
+  topology: "ring"
+  interval_seconds: 60
+  staleness_intervals: 3
+
+  message:
+    serialize_format: "json"
+    estimated_size_bytes: 2048
+    transmission_cost_factor: 0.001     # per KB
+
+fault_model:
+  enabled: true
+  distribution: "poisson"
+  fault_interval_seconds: 300  # one every 5 minutes
+  max_simultaneous_faults: 3
+
+  fault_types:
+    - cpu_failure
+    - server_crash
+    - bandwidth_degradation
+
+  effects:
+    cpu_failure_reduction_percent: 80
+    bandwidth_degradation_percent: 70
+    server_crash_down: true
+
+  recovery_time_seconds: 600       # 10 minutes
+
+migration:
+  enabled: true
+
+  intra_fog:
+    bandwidth_mbps: 10000   # LAN speed
+    feasibility_rules:
+      max_cpu_utilization: 1.0
+      max_ram_utilization: 1.0
+      max_bw_utilization: 1.0
+
+  inter_fog:
+    threshold_score: 0.3
+    multicast_target_count: 3
+
+  cloud_fallback:
+    always_available: true
+    cloud_score:
+      cpu_weight: 1.0
+      mem_weight: 1.0
+      bw_weight: 0.7
+
+bidding:
+  enabled: true
+  bid_timeout_ms: 100
+  comm_delay_ms: 5
+
+  cost_model:
+    resource_cost:
+      cpu_unit: 1.0
+      ram_unit: 0.5
+      bw_unit: 0.2
+
+    risk_cost:
+      failure_weight: 5.0
+      cpu_load_factor: 0.5
+
+    migration_cost:
+      restore_factor: 0.1
+
+sla_payment:
+  wallet_initial_tokens: 1000
+
+  sla_value:
+    epsilon: 0.01
+    urgency_k: 0.1
+    resource_weight: 0.6
+    urgency_weight: 0.4
+
+  penalty:
+    eta: 1.0
+
+evaluation_metrics:
+  enabled: true
+  collect:
+    - mean_migration_time
+    - sla_violation_ratio
+    - network_overhead
+    - load_imbalance
+    - fault_recovery_time
+    - makespan
+    - energy_consumption
+    - availability
+
+output:
+  log_directory: "./logs"
+  export_json: true
+  export_csv: true
+  export_plots: true
+
+
+7.1 How to Use This YAML for Experiments
+
+Experiment 1 — Distributed Fog-Layer Migration
+
+To run the distributed experiment, configure the simulation mode as follows:
+
+simulation:
+  mode: "distributed"
+
+
+This activates:
+
+Gossip
+
+Inter-fog scoring
+
+Bidding
+
+Decentralized decisions
+
+You will see intra-fog migration, inter-fog migration, cloud fallback, and fully autonomous fog behavior.
+
+Experiment 2 — Centralized Scheduler at Cloud
+
+To run the centralized experiment, switch the simulation mode:
+
+simulation:
+  mode: "centralized"
+
+
+This should automatically disable gossip, bidding, and distributed scoring, and instead enable:
+
+Cloud-based placement + migration decisions
+
+Full global state awareness
+
+No staleness
+
+No economic negotiation
+
+You can reuse the same YAML file and only change the mode to perform the comparative evaluation.
