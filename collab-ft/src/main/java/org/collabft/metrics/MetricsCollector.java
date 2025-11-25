@@ -5,7 +5,6 @@ import org.collabft.model.ContainerModule;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -20,29 +19,35 @@ public class MetricsCollector {
     private final List<FaultRecord> faults = new ArrayList<>();
     private final List<GossipRecord> gossips = new ArrayList<>();
     private final List<SlaRecord> sla = new ArrayList<>();
+    private final List<LoadRecord> load = new ArrayList<>();
+    private final List<ResourceRecord> resources = new ArrayList<>();
+    private final List<NetworkRecord> network = new ArrayList<>();
     private final EconomicRecord economic = new EconomicRecord();
     private final Map<String, DecisionLatency> decisionLatency = new HashMap<>();
     private double simStart = 0;
     private double simFinish = 0;
 
     /** Record a migration event with classification. */
-    public void recordMigration(MigrationKind kind, ContainerModule container, double start, double finish, double overheadCpu, double overheadBw, boolean success, String trigger) {
-        migrations.add(new MigrationRecord(kind, container.getContainerId(), container.getOwnerFog(), start, finish, overheadCpu, overheadBw, success, trigger));
+    public void recordMigration(MigrationKind kind, ContainerModule container, String from, String to, double start, double finish, double overheadCpu, double overheadBw, boolean success, String trigger) {
+        double migrationTime = Math.max(0, finish - start);
+        migrations.add(new MigrationRecord(kind, container.getContainerId(), from, to, start, finish, migrationTime,
+                container.getProfile().getContainerSizeMb(), overheadCpu, overheadBw, success, trigger));
     }
 
     /** Record a fault prediction/occurrence. */
-    public void recordFault(String serverName, double predictTime, double failTime, boolean recovered) {
-        faults.add(new FaultRecord(serverName, predictTime, failTime, recovered));
+    public void recordFault(String serverName, String faultType, double predictTime, double failTime, double recoveryTime, boolean recovered) {
+        faults.add(new FaultRecord(serverName, faultType, predictTime, failTime, recoveryTime, recovered));
     }
 
     /** Record gossip/control plane overhead. */
-    public void recordGossip(int senderId, int receiverId, double sizeBytes, double timestamp) {
-        gossips.add(new GossipRecord(senderId, receiverId, sizeBytes, timestamp));
+    public void recordGossip(String sender, String receiver, double sizeBytes, double timestamp, double cpuLoad, double memLoad, double bwLoad, boolean stale) {
+        gossips.add(new GossipRecord(sender, receiver, sizeBytes, timestamp, cpuLoad, memLoad, bwLoad, stale));
+        recordNetwork("gossip", sender, receiver, sizeBytes, timestamp);
     }
 
     /** Record SLA outcome for a task/container. */
-    public void recordSla(String containerId, boolean violated, double completionLatency, double deadlineSeconds) {
-        sla.add(new SlaRecord(containerId, violated, completionLatency, deadlineSeconds));
+    public void recordSla(String containerId, boolean violated, double completionLatency, double deadlineSeconds, double slaValue, double payment) {
+        sla.add(new SlaRecord(containerId, !violated, completionLatency, deadlineSeconds, slaValue, payment));
     }
 
     /** Record bidding payments/tokens. */
@@ -53,6 +58,21 @@ public class MetricsCollector {
     /** Record decision latency for scheduling. */
     public void recordDecisionLatency(String containerId, double started, double finished, boolean centralized) {
         decisionLatency.put(containerId, new DecisionLatency(started, finished, centralized));
+    }
+
+    /** Record load per fog node (averaged across servers). */
+    public void recordLoad(String fogName, double time, double cpuLoad, double memLoad, double bwLoad, boolean stale) {
+        load.add(new LoadRecord(fogName, time, cpuLoad, memLoad, bwLoad, stale));
+    }
+
+    /** Record per-server resource usage snapshot. */
+    public void recordResource(String fogName, String serverName, double time, double cpuLoad, double memLoad, double bwLoad, int containers) {
+        resources.add(new ResourceRecord(fogName, serverName, time, cpuLoad, memLoad, bwLoad, containers));
+    }
+
+    /** Record network usage for visualization (bytes over time). */
+    public void recordNetwork(String kind, String from, String to, double bytes, double time) {
+        network.add(new NetworkRecord(kind, from, to, bytes, time));
     }
 
     public List<MigrationRecord> getMigrations() {
@@ -69,6 +89,18 @@ public class MetricsCollector {
 
     public List<SlaRecord> getSla() {
         return sla;
+    }
+
+    public List<LoadRecord> getLoad() {
+        return load;
+    }
+
+    public List<ResourceRecord> getResources() {
+        return resources;
+    }
+
+    public List<NetworkRecord> getNetwork() {
+        return network;
     }
 
     public List<Payment> getPayments() {
@@ -104,18 +136,22 @@ public class MetricsCollector {
         Files.writeString(outDir.resolve("sla.json"), JsonUtil.toJsonLines(sla));
         Files.writeString(outDir.resolve("economic.json"), JsonUtil.toJsonLines(economic.payments));
         Files.writeString(outDir.resolve("decisions.json"), JsonUtil.toJsonLines(decisionLatency.values()));
+        Files.writeString(outDir.resolve("network.csv"), JsonUtil.toCsv(network, "time,kind,from,to,bytes"));
+        Files.writeString(outDir.resolve("load.csv"), JsonUtil.toCsv(load, "time,fog,cpuLoad,memLoad,bwLoad,stale"));
+        Files.writeString(outDir.resolve("resources.csv"), JsonUtil.toCsv(resources, "time,fog,server,containers,cpuLoad,memLoad,bwLoad"));
     }
 
     public enum MigrationKind { INTRA_FOG, INTER_FOG, CLOUD }
 
-    public record MigrationRecord(MigrationKind kind, String containerId, String sourceFog, double start,
-                                  double finish, double overheadCpu, double overheadBw, boolean success, String trigger) { }
+    public record MigrationRecord(MigrationKind kind, String containerId, String from, String to, double start,
+                                  double finish, double migrationTime, double sizeMb, double overheadCpu, double overheadBw,
+                                  boolean success, String reason) { }
 
-    public record FaultRecord(String serverName, double predictedAt, double failedAt, boolean recovered) { }
+    public record FaultRecord(String serverName, String faultType, double predictedAt, double failedAt, double recoveryAt, boolean recovered) { }
 
-    public record GossipRecord(int senderId, int receiverId, double bytes, double timestamp) { }
+    public record GossipRecord(String sender, String receiver, double bytes, double timestamp, double cpuLoad, double memLoad, double bwLoad, boolean stale) { }
 
-    public record SlaRecord(String containerId, boolean violated, double completionLatency, double deadlineSeconds) { }
+    public record SlaRecord(String containerId, boolean slaMet, double completionLatency, double deadlineSeconds, double slaValue, double payment) { }
 
     public record Payment(int payerId, int payeeId, double amount) { }
 
@@ -124,6 +160,12 @@ public class MetricsCollector {
     }
 
     public record DecisionLatency(double started, double finished, boolean centralized) { }
+
+    public record LoadRecord(String fogName, double time, double cpuLoad, double memLoad, double bwLoad, boolean stale) { }
+
+    public record ResourceRecord(String fogName, String serverName, double time, double cpuLoad, double memLoad, double bwLoad, int containers) { }
+
+    public record NetworkRecord(String kind, String from, String to, double bytes, double time) { }
 
     /** Minimal JSON serializer for structured metrics lines. */
     public static final class JsonUtil {
@@ -137,35 +179,68 @@ public class MetricsCollector {
 
         public static String toJsonObject(Object o) {
             if (o == null) return "null";
-            Map<String, Object> map = new HashMap<>();
+            if (o instanceof Number || o instanceof Boolean) {
+                return o.toString();
+            }
+            if (o instanceof String s) {
+                return "\"" + s + "\"";
+            }
             if (o instanceof Map<?, ?> m) {
+                StringBuilder sb = new StringBuilder("{");
+                boolean first = true;
                 for (var e : m.entrySet()) {
-                    map.put(String.valueOf(e.getKey()), e.getValue());
+                    if (!first) sb.append(',');
+                    first = false;
+                    sb.append('"').append(e.getKey()).append('"').append(':').append(toJsonObject(e.getValue()));
                 }
-            } else if (o.getClass().isRecord()) {
+                sb.append('}');
+                return sb.toString();
+            }
+            if (o instanceof Iterable<?> it) {
+                StringBuilder sb = new StringBuilder("[");
+                boolean first = true;
+                for (Object v : it) {
+                    if (!first) sb.append(',');
+                    first = false;
+                    sb.append(toJsonObject(v));
+                }
+                sb.append(']');
+                return sb.toString();
+            }
+            if (o.getClass().isArray()) {
+                int len = java.lang.reflect.Array.getLength(o);
+                StringBuilder sb = new StringBuilder("[");
+                for (int i = 0; i < len; i++) {
+                    if (i > 0) sb.append(',');
+                    sb.append(toJsonObject(java.lang.reflect.Array.get(o, i)));
+                }
+                sb.append(']');
+                return sb.toString();
+            }
+            if (o.getClass().isRecord()) {
+                Map<String, Object> map = new HashMap<>();
                 for (var field : o.getClass().getRecordComponents()) {
                     try {
                         map.put(field.getName(), field.getAccessor().invoke(o));
                     } catch (Exception ignored) {
                     }
                 }
-            } else {
-                map.put("value", o.toString());
+                return toJsonObject(map);
             }
-            StringBuilder sb = new StringBuilder("{");
-            boolean first = true;
-            for (var e : map.entrySet()) {
-                if (!first) sb.append(',');
-                first = false;
-                sb.append('"').append(e.getKey()).append('"').append(':');
-                Object v = e.getValue();
-                if (v instanceof Number || v instanceof Boolean) {
-                    sb.append(v);
-                } else {
-                    sb.append('"').append(String.valueOf(v)).append('"');
+            return "\"" + String.valueOf(o) + "\"";
+        }
+
+        public static String toCsv(List<?> rows, String header) {
+            StringBuilder sb = new StringBuilder(header).append("\n");
+            for (Object row : rows) {
+                if (row instanceof NetworkRecord n) {
+                    sb.append(n.time()).append(',').append(n.kind()).append(',').append(n.from()).append(',').append(n.to()).append(',').append(n.bytes()).append("\n");
+                } else if (row instanceof LoadRecord l) {
+                    sb.append(l.time()).append(',').append(l.fogName()).append(',').append(l.cpuLoad()).append(',').append(l.memLoad()).append(',').append(l.bwLoad()).append(',').append(l.stale()).append("\n");
+                } else if (row instanceof ResourceRecord r) {
+                    sb.append(r.time()).append(',').append(r.fogName()).append(',').append(r.serverName()).append(',').append(r.containers()).append(',').append(r.cpuLoad()).append(',').append(r.memLoad()).append(',').append(r.bwLoad()).append("\n");
                 }
             }
-            sb.append('}');
             return sb.toString();
         }
     }

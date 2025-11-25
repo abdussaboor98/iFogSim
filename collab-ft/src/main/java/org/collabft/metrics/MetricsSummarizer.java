@@ -39,7 +39,7 @@ public final class MetricsSummarizer {
         long intra = collector.getMigrations().stream().filter(r -> r.kind() == MetricsCollector.MigrationKind.INTRA_FOG).count();
         long inter = collector.getMigrations().stream().filter(r -> r.kind() == MetricsCollector.MigrationKind.INTER_FOG).count();
         long cloud = collector.getMigrations().stream().filter(r -> r.kind() == MetricsCollector.MigrationKind.CLOUD).count();
-        double avgTime = collector.getMigrations().stream().mapToDouble(r -> r.finish() - r.start()).average().orElse(0);
+        double avgTime = collector.getMigrations().stream().mapToDouble(MetricsCollector.MigrationRecord::migrationTime).average().orElse(0);
         long successes = collector.getMigrations().stream().filter(MetricsCollector.MigrationRecord::success).count();
         long total = collector.getMigrations().size();
         m.put("total", total);
@@ -71,13 +71,15 @@ public final class MetricsSummarizer {
 
     private static Map<String, Object> slaSummary(MetricsCollector collector) {
         Map<String, Object> s = new HashMap<>();
-        long violations = collector.getSla().stream().filter(MetricsCollector.SlaRecord::violated).count();
+        long violations = collector.getSla().stream().filter(r -> !r.slaMet()).count();
         long total = collector.getSla().size();
         double avgLatency = collector.getSla().stream().mapToDouble(MetricsCollector.SlaRecord::completionLatency).average().orElse(0);
+        double avgSlaValue = collector.getSla().stream().mapToDouble(MetricsCollector.SlaRecord::slaValue).average().orElse(0);
         s.put("count", total);
         s.put("violations", violations);
         s.put("violationRatio", total == 0 ? 0 : (double) violations / total);
         s.put("avgCompletionLatency", avgLatency);
+        s.put("avgSlaValue", avgSlaValue);
         return s;
     }
 
@@ -113,7 +115,7 @@ public final class MetricsSummarizer {
         Map<String, Object> l = new HashMap<>();
         Map<String, Long> perFog = new HashMap<>();
         for (MetricsCollector.MigrationRecord r : collector.getMigrations()) {
-            perFog.put(r.sourceFog(), perFog.getOrDefault(r.sourceFog(), 0L) + 1);
+            perFog.put(r.from(), perFog.getOrDefault(r.from(), 0L) + 1);
         }
         double mean = perFog.values().stream().mapToDouble(Long::doubleValue).average().orElse(0);
         double variance = perFog.values().stream().mapToDouble(v -> Math.pow(v - mean, 2)).average().orElse(0);

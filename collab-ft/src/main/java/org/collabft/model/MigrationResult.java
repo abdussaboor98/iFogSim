@@ -8,6 +8,8 @@ import org.collabft.metrics.MetricsCollector;
 public class MigrationResult {
     private final ContainerModule container;
     private final MetricsCollector.MigrationKind kind;
+    private final String from;
+    private final String to;
     private final double start;
     private final double finish;
     private final double overheadCpu;
@@ -15,9 +17,11 @@ public class MigrationResult {
     private final boolean success;
     private final String trigger;
 
-    public MigrationResult(ContainerModule container, MetricsCollector.MigrationKind kind, double start, double finish, double overheadCpu, double overheadBw, boolean success, String trigger) {
+    public MigrationResult(ContainerModule container, MetricsCollector.MigrationKind kind, String from, String to, double start, double finish, double overheadCpu, double overheadBw, boolean success, String trigger) {
         this.container = container;
         this.kind = kind;
+        this.from = from;
+        this.to = to;
         this.start = start;
         this.finish = finish;
         this.overheadCpu = overheadCpu;
@@ -32,6 +36,14 @@ public class MigrationResult {
 
     public MetricsCollector.MigrationKind getKind() {
         return kind;
+    }
+
+    public String getFrom() {
+        return from;
+    }
+
+    public String getTo() {
+        return to;
     }
 
     public double getStart() {

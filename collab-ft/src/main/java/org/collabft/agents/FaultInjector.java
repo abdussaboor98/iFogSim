@@ -56,7 +56,13 @@ public class FaultInjector extends SimEntity {
                 } else {
                     send(notice.getControllerId(), 0, CollabSimTags.FAULT_EVENT, notice);
                     send(notice.getServer().getId(), recoverySeconds, CollabSimTags.RECOVERY_EVENT);
-                    MetricsRegistry.collector().recordFault(notice.getServer().getName(), notice.getFailureTime() - leadSeconds, CloudSim.clock(), true);
+                    MetricsRegistry.collector().recordFault(
+                            notice.getServer().getName(),
+                            notice.getType().name().toLowerCase(),
+                            notice.getFailureTime() - leadSeconds,
+                            CloudSim.clock(),
+                            CloudSim.clock() + recoverySeconds,
+                            true);
                     scheduleNext();
                 }
             }
@@ -89,12 +95,15 @@ public class FaultInjector extends SimEntity {
 
     private FaultNotice.FaultType pickType() {
         double u = random.nextDouble();
-        if (u < cpuProb) {
+        double thresholdCpu = cpuProb;
+        double thresholdBw = cpuProb + bwProb;
+        double thresholdCrash = cpuProb + bwProb + crashProb;
+        if (u < thresholdCpu) {
             return FaultNotice.FaultType.CPU_FAILURE;
-        } else if (u < cpuProb + bwProb) {
+        } else if (u < thresholdBw) {
             return FaultNotice.FaultType.BANDWIDTH_DEGRADATION;
         }
-        return FaultNotice.FaultType.SERVER_CRASH;
+        return u < thresholdCrash ? FaultNotice.FaultType.SERVER_CRASH : FaultNotice.FaultType.SERVER_CRASH;
     }
 
     private record Target(int controllerId, FogServer server) {

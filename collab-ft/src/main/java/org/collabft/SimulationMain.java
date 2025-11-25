@@ -10,11 +10,14 @@ import org.collabft.metrics.MetricsRegistry;
 import org.collabft.metrics.MetricsSummarizer;
 import org.collabft.model.ContainerProfile;
 import org.collabft.model.ResourceCapacity;
+import org.collabft.util.TopologyExporter;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Entry point for the collaborative fault tolerance experiments.
@@ -39,6 +42,8 @@ public class SimulationMain {
 
         List<FogNodeController> controllers = new ArrayList<>();
         List<FogServer> allServers = new ArrayList<>();
+        List<EdgeDevice> edges = new ArrayList<>();
+        Map<String, List<EdgeDevice>> edgesByController = new HashMap<>();
 
         int fogIndex = 0;
         for (SimulationConfig.FogNodeConfig nodeConfig : config.getTopology().getFogNodes()) {
@@ -87,6 +92,8 @@ public class SimulationMain {
                         config.getTask(), config.getTopology().getEdge(),
                         config.getSimulation().getSeed() + i);
                 edge.setParentId(controller.getId());
+                edges.add(edge);
+                edgesByController.computeIfAbsent(controller.getName(), k -> new ArrayList<>()).add(edge);
             }
         }
 
@@ -98,6 +105,13 @@ public class SimulationMain {
         new FaultInjector("fault-injector", controllers, config.getFault().getMeanTimeBetweenFailureSeconds(),
                 config.getFault().getRecoverySeconds(), config.getFault().getPredictionLeadSeconds(), config.getSimulation().getSeed() + 42,
                 config.getFault().getCpuFailureProb(), config.getFault().getBandwidthDegradationProb(), config.getFault().getServerCrashProb());
+
+        try {
+            TopologyExporter.export(Path.of("exports"), cloud, controllers, edgesByController, config.getNetwork());
+            Log.printLine("Topology exported to exports/topology.graphml and exports/topology.json");
+        } catch (Exception e) {
+            Log.printLine("Failed to export topology: " + e.getMessage());
+        }
 
         CloudSim.startSimulation();
         CloudSim.stopSimulation();

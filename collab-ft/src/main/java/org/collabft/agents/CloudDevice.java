@@ -9,6 +9,7 @@ import org.collabft.model.MigrationRequest;
 import org.collabft.model.MigrationResult;
 import org.collabft.model.MigrationTransfer;
 import org.collabft.model.ResourceCapacity;
+import org.collabft.metrics.MetricsRegistry;
 import org.collabft.util.FogDeviceFactory;
 import org.collabft.util.FogDeviceFactory.Components;
 import org.fog.entities.FogDevice;
@@ -58,8 +59,9 @@ public class CloudDevice extends FogDevice {
                             ? module.getProfile().getContainerSizeMb() / transfer.getLinkBandwidthMbps()
                             : 0;
                     double finish = CloudSim.clock() + transferSeconds + transfer.getLatencySeconds();
+                    MetricsRegistry.collector().recordNetwork("migration", transfer.getSourceName(), getName(), module.getProfile().getContainerSizeMb() * 1024 * 1024, CloudSim.clock());
                     send(transfer.getOriginId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_FINISH,
-                            new MigrationResult(module, transfer.getKind(), module.getMigrationStart(), finish, 0, module.getProfile().getContainerSizeMb(), true, transfer.getTrigger()));
+                            new MigrationResult(module, transfer.getKind(), transfer.getSourceName(), getName(), module.getMigrationStart(), finish, 0, module.getProfile().getContainerSizeMb(), true, transfer.getTrigger()));
                 }
                 break;
             case MIGRATION_REQUEST:

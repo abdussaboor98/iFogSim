@@ -57,16 +57,28 @@ public class CentralCloudScheduler extends SimEntity {
         }
         if (bestController != null && bestScore > 0) {
             send(bestController.getId(), 0, CollabSimTags.MIGRATION_START,
-                    new MigrationTransfer(container, request.getOriginId(), MetricsCollector.MigrationKind.INTER_FOG,
+                    new MigrationTransfer(container, request.getOriginId(), sourceName(container, request.getOriginId()), MetricsCollector.MigrationKind.INTER_FOG,
                             Math.min(bestController.getCapacity().getUplinkBandwidth(), network.getInterFogBandwidthMbps()),
                             network.getInterFogLatencyMs() / 1000.0,
                             container.getMigrationTrigger()));
         } else {
             send(cloud.getId(), 0, CollabSimTags.MIGRATION_START,
-                    new MigrationTransfer(container, request.getOriginId(), MetricsCollector.MigrationKind.CLOUD,
+                    new MigrationTransfer(container, request.getOriginId(), sourceName(container, request.getOriginId()), MetricsCollector.MigrationKind.CLOUD,
                             Math.min(cloud.getCapacity().getUplinkBandwidth(), network.getFogCloudBandwidthMbps()),
                             network.getFogCloudLatencyMs() / 1000.0,
                             container.getMigrationTrigger()));
         }
+    }
+
+    private String sourceName(ContainerModule container, int originId) {
+        if (container.getHostName() != null) {
+            return container.getHostName();
+        }
+        for (FogNodeController controller : controllers) {
+            if (controller.getId() == originId) {
+                return controller.getName();
+            }
+        }
+        return "unknown";
     }
 }

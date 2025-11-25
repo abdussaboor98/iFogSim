@@ -6,7 +6,6 @@ import org.fog.scheduler.TupleScheduler;
 import org.fog.utils.FogUtils;
 
 import java.util.Collections;
-import java.util.Map;
 import java.util.UUID;
 
 /**

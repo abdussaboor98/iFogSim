@@ -47,10 +47,40 @@ public class GossipAgent extends SimEntity {
                     ? List.of(nodes.get((nodes.indexOf(current) + 1) % nodes.size()).getId())
                     : current.getNeighborIds();
             var table = current.snapshotStateTable();
-            table.putAll(current.snapshotLoad());
+            var selfLoad = current.snapshotLoad();
+            var entry = selfLoad.getOrDefault(current.getId(), null);
+            if (entry != null) {
+                MetricsRegistry.collector().recordLoad(
+                        current.getName(),
+                        CloudSim.clock(),
+                        entry.getCpuLoad(),
+                        entry.getMemLoad(),
+                        entry.getBwLoad(),
+                        false);
+            }
+            for (FogServer server : current.getServers()) {
+                MetricsRegistry.collector().recordResource(
+                        current.getName(),
+                        server.getName(),
+                        CloudSim.clock(),
+                        server.getCpuLoad(),
+                        server.getMemLoad(),
+                        server.getBwLoad(),
+                        server.getContainers().size());
+            }
+            table.putAll(selfLoad);
             for (Integer neighborId : neighbors) {
                 send(neighborId, CloudSim.getMinTimeBetweenEvents(), CollabSimTags.GOSSIP_EVENT, new java.util.HashMap<>(table));
-                MetricsRegistry.collector().recordGossip(current.getId(), neighborId, table.size(), CloudSim.clock());
+                double bytes = table.size() * 64.0;
+                MetricsRegistry.collector().recordGossip(
+                        CloudSim.getEntityName(current.getId()),
+                        CloudSim.getEntityName(neighborId),
+                        bytes,
+                        CloudSim.clock(),
+                        entry != null ? entry.getCpuLoad() : 0,
+                        entry != null ? entry.getMemLoad() : 0,
+                        entry != null ? entry.getBwLoad() : 0,
+                        false);
             }
         }
     }
