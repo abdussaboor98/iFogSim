@@ -1,96 +1,116 @@
 simulation:
+  # mode: 1 (distributed gossip+bidding) or 2 (centralized cloud scheduler)
   mode: 1
+  # RNG seed to keep experiments reproducible
   seed: 42
-  durationSeconds: 1800
+  # Simulation end time in seconds
+  durationSeconds: 86400
 
 gossip:
+  # Period between gossip rounds (seconds)
   intervalSeconds: 60
+  # Entries older than this many intervals are ignored
   stalenessThresholdIntervals: 3
 
 fault:
+  # Prediction horizon Δ before failure occurs
   predictionLeadSeconds: 60
-  meanTimeBetweenFailureSeconds: 600
-  recoverySeconds: 120
+  # Mean time between failures (seconds) for Poisson process
+  meanTimeBetweenFailureSeconds: 90
+  # Time until a failed server recovers (seconds)
+  recoverySeconds: 180
 
 bidding:
+  # Max neighbors (plus cloud) to request bids from
   topK: 3
+  # Minimum score S_node required to be eligible
   suitabilityThreshold: 0.3
+  # Timeout before abandoning a bidding round (seconds)
   responseTimeoutSeconds: 20
 
 task:
+  # Number of tasks each edge emits (total per edge)
   tasksPerEdge: 5
-  meanInterArrivalSeconds: 120
+  # Mean inter-arrival time (seconds) for exponential arrivals
+  meanInterArrivalSeconds: 20
   defaultProfile:
-    cpuMips: 500
-    ramMb: 256
-    bandwidth: 500
+    # Container MI demand
+    cpuMips: 3000
+    # RAM demand in MB
+    ramMb: 1024
+    # Bandwidth demand in Mbps
+    bandwidth: 2000
+    # Image+state size in MB
     containerSizeMb: 50
-    deadlineSeconds: 300
+    # Deadline for completion (seconds)
+    deadlineSeconds: 40
 
 topology:
   fogNodes:
+    # Define 6 fog nodes; adjust counts or capacities as needed.
     - name: fog-1
-      servers: 3
+      servers: 4
       serverCapacity:
-        cpuMips: 2000
-        ramMb: 4096
-        bandwidth: 8000
+        cpuMips: 1000
+        ramMb: 2048
+        bandwidth: 2000
         storageMb: 100000
         uplinkBandwidth: 8000
         downlinkBandwidth: 8000
         ratePerMips: 0.0
     - name: fog-2
-      servers: 3
+      servers: 2
       serverCapacity:
-        cpuMips: 2000
-        ramMb: 4096
-        bandwidth: 8000
+        cpuMips: 1000
+        ramMb: 2048
+        bandwidth: 2000
         storageMb: 100000
         uplinkBandwidth: 8000
         downlinkBandwidth: 8000
         ratePerMips: 0.0
     - name: fog-3
-      servers: 3
+      servers: 2
       serverCapacity:
-        cpuMips: 6000
-        ramMb: 8192
-        bandwidth: 12000
+        cpuMips: 3000
+        ramMb: 4096
+        bandwidth: 4000
         storageMb: 100000
         uplinkBandwidth: 12000
         downlinkBandwidth: 12000
         ratePerMips: 0.0
     - name: fog-4
-      servers: 3
+      servers: 6
       serverCapacity:
-        cpuMips: 2000
-        ramMb: 4096
-        bandwidth: 8000
+        cpuMips: 1000
+        ramMb: 2048
+        bandwidth: 2000
         storageMb: 100000
         uplinkBandwidth: 8000
         downlinkBandwidth: 8000
         ratePerMips: 0.0
     - name: fog-5
-      servers: 3
+      servers: 2
       serverCapacity:
-        cpuMips: 2000
-        ramMb: 4096
-        bandwidth: 8000
+        cpuMips: 1000
+        ramMb: 2048
+        bandwidth: 2000
         storageMb: 100000
         uplinkBandwidth: 8000
         downlinkBandwidth: 8000
         ratePerMips: 0.0
     - name: fog-6
-      servers: 3
+      servers: 4
       serverCapacity:
-        cpuMips: 2000
-        ramMb: 4096
-        bandwidth: 8000
+        cpuMips: 1000
+        ramMb: 2048
+        bandwidth: 2000
         storageMb: 100000
         uplinkBandwidth: 8000
         downlinkBandwidth: 8000
         ratePerMips: 0.0
   cloud:
     capacity:
+      # Central fallback capacity (treated as abundant bandwidth by default)
       cpuMips: 12000
       ramMb: 65536
       bandwidth: 100000
@@ -99,4 +119,5 @@ topology:
       downlinkBandwidth: 100000
       ratePerMips: 0.0
   edge:
-    devicesPerFog: 5
+    # Number of edge devices attached to each fog node
+    devicesPerFog: 10

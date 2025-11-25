@@ -6,6 +6,8 @@ import org.collabft.agents.*;
 import org.collabft.config.ConfigLoader;
 import org.collabft.config.SimulationConfig;
 import org.collabft.economy.TokenManager;
+import org.collabft.metrics.MetricsRegistry;
+import org.collabft.metrics.MetricsSummarizer;
 import org.collabft.model.ContainerProfile;
 import org.collabft.model.ResourceCapacity;
 
@@ -23,7 +25,7 @@ public class SimulationMain {
         SimulationConfig config = configPath != null ? ConfigLoader.load(configPath)
                 : ConfigLoader.loadFromClasspath("collabft-config.yaml");
 
-        // Enable basic console logging so runs show visible progress.
+        // Enable console logging so runs show visible progress.
         Log.enable();
         Log.printLine("Starting collab-ft simulation; mode=" + config.getSimulation().getMode());
         CloudSim.init(1, Calendar.getInstance(), false);
@@ -32,6 +34,7 @@ public class SimulationMain {
         TokenManager tokenManager = new TokenManager();
         ResourceCapacity cloudCap = config.getTopology().getCloud().getCapacity();
         CloudDevice cloud = new CloudDevice("cloud", cloudCap);
+        MetricsRegistry.collector(); // initialize
 
         List<FogNodeController> controllers = new ArrayList<>();
         List<FogServer> allServers = new ArrayList<>();
@@ -88,6 +91,20 @@ public class SimulationMain {
 
         CloudSim.startSimulation();
         CloudSim.stopSimulation();
+        // Export metrics to logs/metrics_*.json
+        Path metricsDir = Path.of("logs");
+        try {
+            MetricsRegistry.collector().export(metricsDir);
+            Log.printLine("Metrics exported to " + metricsDir.toAbsolutePath());
+        } catch (Exception e) {
+            Log.printLine("Failed to export metrics: " + e.getMessage());
+        }
+        try {
+            MetricsSummarizer.summarize(MetricsRegistry.collector(), Path.of("results"));
+            Log.printLine("Summary exported to results/summary.json");
+        } catch (Exception e) {
+            Log.printLine("Failed to write summary: " + e.getMessage());
+        }
         Log.printLine("Simulation finished.");
     }
 }

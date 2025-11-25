@@ -11,6 +11,8 @@ import org.collabft.model.*;
 import org.collabft.util.FogDeviceFactory;
 import org.collabft.util.FogDeviceFactory.Components;
 import org.collabft.util.ScoringUtil;
+import org.collabft.metrics.MetricsCollector;
+import org.collabft.metrics.MetricsRegistry;
 import org.fog.entities.FogDevice;
 import org.fog.utils.FogLinearPowerModel;
 
@@ -78,6 +80,8 @@ public class FogNodeController extends FogDevice {
         }
         ContainerModule module = new ContainerModule("container-" + profile.getTaskId(), "collab-app", getId(), profile.getContainerProfile());
         module.setOwnerFog(getName());
+        // Track arrival time for SLA metrics
+        module.setArrivalTime(CloudSim.clock());
         placeNewContainer(module);
     }
 
@@ -88,7 +92,7 @@ public class FogNodeController extends FogDevice {
         server.markFailed();
         for (ContainerModule container : new ArrayList<>(server.getContainers())) {
             server.removeContainer(container);
-            migrateContainer(container);
+            migrateContainer(container, "fault_triggered");
         }
     }
 
@@ -122,6 +126,7 @@ public class FogNodeController extends FogDevice {
             if (container != null) {
                 send(winner.get().getBidderId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_START, container);
                 bidManager.clear(container.getContainerId());
+                MetricsRegistry.collector().recordDecisionLatency(container.getContainerId(), container.getMigrationStart(), CloudSim.clock(), mode == 2);
             }
         }
     }
@@ -132,6 +137,19 @@ public class FogNodeController extends FogDevice {
         }
         placeNewContainer(container);
         tokenManager.credit(getId(), 1.0);
+        // Record migration completion time for metrics
+        double start = container.getMigrationStart();
+        if (start > 0) {
+            MetricsRegistry.collector().recordMigration(
+                    MetricsCollector.MigrationKind.INTER_FOG,
+                    container,
+                    start,
+                    CloudSim.clock(),
+                    0,
+                    0,
+                    true,
+                    container.getMigrationTrigger());
+        }
     }
 
     private void handleGossip(SimEvent ev) {
@@ -169,7 +187,14 @@ public class FogNodeController extends FogDevice {
     }
 
     private void migrateContainer(ContainerModule container) {
+        migrateContainer(container, "score_fallback");
+    }
+
+    private void migrateContainer(ContainerModule container, String trigger) {
+        container.setMigrationStart(CloudSim.clock());
+        container.setMigrationTrigger(trigger);
         if (mode == 2 && schedulerId >= 0) {
+            MetricsRegistry.collector().recordDecisionLatency(container.getContainerId(), CloudSim.clock(), CloudSim.clock(), true);
             send(schedulerId, CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_REQUEST,
                     new MigrationRequest(container, getId()));
             return;

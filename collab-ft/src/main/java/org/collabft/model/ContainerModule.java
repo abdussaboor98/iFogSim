@@ -18,6 +18,9 @@ public class ContainerModule extends AppModule {
     private final double deadlineSeconds;
     private String hostName;
     private String ownerFog;
+    private double arrivalTime;
+    private double migrationStart;
+    private String migrationTrigger = "";
 
     public ContainerModule(String name, String appId, int userId, ContainerProfile profile) {
         this(name, appId, userId, profile, profile.getDeadlineSeconds(), new TupleScheduler(profile.getCpuMips(), 1));
@@ -56,5 +59,29 @@ public class ContainerModule extends AppModule {
 
     public void setOwnerFog(String ownerFog) {
         this.ownerFog = ownerFog;
+    }
+
+    public double getArrivalTime() {
+        return arrivalTime;
+    }
+
+    public void setArrivalTime(double arrivalTime) {
+        this.arrivalTime = arrivalTime;
+    }
+
+    public double getMigrationStart() {
+        return migrationStart;
+    }
+
+    public void setMigrationStart(double migrationStart) {
+        this.migrationStart = migrationStart;
+    }
+
+    public String getMigrationTrigger() {
+        return migrationTrigger;
+    }
+
+    public void setMigrationTrigger(String migrationTrigger) {
+        this.migrationTrigger = migrationTrigger;
     }
 }

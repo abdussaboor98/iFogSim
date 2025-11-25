@@ -4,6 +4,7 @@ import org.cloudbus.cloudsim.core.CloudSim;
 import org.cloudbus.cloudsim.core.SimEntity;
 import org.cloudbus.cloudsim.core.SimEvent;
 import org.collabft.events.CollabSimTags;
+import org.collabft.metrics.MetricsRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,6 +44,7 @@ public class FaultInjector extends SimEntity {
             if (ev.getData() instanceof Target target) {
                 send(target.controllerId(), 0, CollabSimTags.FAULT_EVENT, target.server());
                 send(target.server().getId(), recoverySeconds, CollabSimTags.RECOVERY_EVENT);
+                MetricsRegistry.collector().recordFault(target.server().getName(), CloudSim.clock(), CloudSim.clock() + leadSeconds, true);
             }
             scheduleNext();
         }

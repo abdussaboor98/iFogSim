@@ -4,6 +4,7 @@ import org.cloudbus.cloudsim.core.CloudSim;
 import org.cloudbus.cloudsim.core.SimEntity;
 import org.cloudbus.cloudsim.core.SimEvent;
 import org.collabft.events.CollabSimTags;
+import org.collabft.metrics.MetricsRegistry;
 
 import java.util.List;
 
@@ -45,6 +46,8 @@ public class GossipAgent extends SimEntity {
             FogNodeController current = nodes.get(i);
             FogNodeController next = nodes.get((i + 1) % nodes.size());
             send(next.getId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.GOSSIP_EVENT, current.snapshotLoad());
+            // Control-plane overhead per gossip hop
+            MetricsRegistry.collector().recordGossip(current.getId(), next.getId(), current.snapshotLoad().size(), CloudSim.clock());
         }
     }
 }
