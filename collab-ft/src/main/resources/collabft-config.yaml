@@ -1,0 +1,102 @@
+simulation:
+  mode: 1
+  seed: 42
+  durationSeconds: 1800
+
+gossip:
+  intervalSeconds: 60
+  stalenessThresholdIntervals: 3
+
+fault:
+  predictionLeadSeconds: 60
+  meanTimeBetweenFailureSeconds: 600
+  recoverySeconds: 120
+
+bidding:
+  topK: 3
+  suitabilityThreshold: 0.3
+  responseTimeoutSeconds: 20
+
+task:
+  tasksPerEdge: 5
+  meanInterArrivalSeconds: 120
+  defaultProfile:
+    cpuMips: 500
+    ramMb: 256
+    bandwidth: 500
+    containerSizeMb: 50
+    deadlineSeconds: 300
+
+topology:
+  fogNodes:
+    - name: fog-1
+      servers: 3
+      serverCapacity:
+        cpuMips: 2000
+        ramMb: 4096
+        bandwidth: 8000
+        storageMb: 100000
+        uplinkBandwidth: 8000
+        downlinkBandwidth: 8000
+        ratePerMips: 0.0
+    - name: fog-2
+      servers: 3
+      serverCapacity:
+        cpuMips: 2000
+        ramMb: 4096
+        bandwidth: 8000
+        storageMb: 100000
+        uplinkBandwidth: 8000
+        downlinkBandwidth: 8000
+        ratePerMips: 0.0
+    - name: fog-3
+      servers: 3
+      serverCapacity:
+        cpuMips: 6000
+        ramMb: 8192
+        bandwidth: 12000
+        storageMb: 100000
+        uplinkBandwidth: 12000
+        downlinkBandwidth: 12000
+        ratePerMips: 0.0
+    - name: fog-4
+      servers: 3
+      serverCapacity:
+        cpuMips: 2000
+        ramMb: 4096
+        bandwidth: 8000
+        storageMb: 100000
+        uplinkBandwidth: 8000
+        downlinkBandwidth: 8000
+        ratePerMips: 0.0
+    - name: fog-5
+      servers: 3
+      serverCapacity:
+        cpuMips: 2000
+        ramMb: 4096
+        bandwidth: 8000
+        storageMb: 100000
+        uplinkBandwidth: 8000
+        downlinkBandwidth: 8000
+        ratePerMips: 0.0
+    - name: fog-6
+      servers: 3
+      serverCapacity:
+        cpuMips: 2000
+        ramMb: 4096
+        bandwidth: 8000
+        storageMb: 100000
+        uplinkBandwidth: 8000
+        downlinkBandwidth: 8000
+        ratePerMips: 0.0
+  cloud:
+    capacity:
+      cpuMips: 12000
+      ramMb: 65536
+      bandwidth: 100000
+      storageMb: 200000
+      uplinkBandwidth: 100000
+      downlinkBandwidth: 100000
+      ratePerMips: 0.0
+  edge:
+    devicesPerFog: 5
