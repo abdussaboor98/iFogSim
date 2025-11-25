@@ -13,6 +13,7 @@ public enum CollabSimTags implements CloudSimTags {
     MIGRATION_REQUEST,
     BID_REQUEST,
     BID_RESPONSE,
+    BID_TIMEOUT,
     MIGRATION_START,
     MIGRATION_FINISH,
     PAYMENT_EVENT,

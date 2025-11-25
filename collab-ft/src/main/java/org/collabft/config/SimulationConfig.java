@@ -14,8 +14,10 @@ public class SimulationConfig {
     private GossipConfig gossip = new GossipConfig();
     private FaultConfig fault = new FaultConfig();
     private BiddingConfig bidding = new BiddingConfig();
+    private SlaConfig sla = new SlaConfig();
     private TaskConfig task = new TaskConfig();
     private Topology topology = new Topology();
+    private Network network = new Network();
 
     public Simulation getSimulation() {
         return simulation;
@@ -63,6 +65,22 @@ public class SimulationConfig {
 
     public void setTopology(Topology topology) {
         this.topology = topology;
+    }
+
+    public SlaConfig getSla() {
+        return sla;
+    }
+
+    public void setSla(SlaConfig sla) {
+        this.sla = sla;
+    }
+
+    public Network getNetwork() {
+        return network;
+    }
+
+    public void setNetwork(Network network) {
+        this.network = network;
     }
 
     public static class Simulation {
@@ -120,6 +138,9 @@ public class SimulationConfig {
         private double predictionLeadSeconds = 60;
         private double meanTimeBetweenFailureSeconds = 600;
         private double recoverySeconds = 120;
+        private double cpuFailureProb = 0.33;
+        private double bandwidthDegradationProb = 0.34;
+        private double serverCrashProb = 0.33;
 
         public double getPredictionLeadSeconds() {
             return predictionLeadSeconds;
@@ -144,12 +165,42 @@ public class SimulationConfig {
         public void setRecoverySeconds(double recoverySeconds) {
             this.recoverySeconds = recoverySeconds;
         }
+
+        public double getCpuFailureProb() {
+            return cpuFailureProb;
+        }
+
+        public void setCpuFailureProb(double cpuFailureProb) {
+            this.cpuFailureProb = cpuFailureProb;
+        }
+
+        public double getBandwidthDegradationProb() {
+            return bandwidthDegradationProb;
+        }
+
+        public void setBandwidthDegradationProb(double bandwidthDegradationProb) {
+            this.bandwidthDegradationProb = bandwidthDegradationProb;
+        }
+
+        public double getServerCrashProb() {
+            return serverCrashProb;
+        }
+
+        public void setServerCrashProb(double serverCrashProb) {
+            this.serverCrashProb = serverCrashProb;
+        }
     }
 
     public static class BiddingConfig {
         private int topK = 3;
         private double suitabilityThreshold = 0.3;
         private double responseTimeoutSeconds = 20;
+        private double cpuUnitCost = 1.0;
+        private double memUnitCost = 0.5;
+        private double bwUnitCost = 0.2;
+        private double failureWeight = 5.0;
+        private double migrationRestoreFactor = 0.1;
+        private double historicalPenaltyWeight = 1.0;
 
         public int getTopK() {
             return topK;
@@ -174,12 +225,66 @@ public class SimulationConfig {
         public void setResponseTimeoutSeconds(double responseTimeoutSeconds) {
             this.responseTimeoutSeconds = responseTimeoutSeconds;
         }
+
+        public double getCpuUnitCost() {
+            return cpuUnitCost;
+        }
+
+        public void setCpuUnitCost(double cpuUnitCost) {
+            this.cpuUnitCost = cpuUnitCost;
+        }
+
+        public double getMemUnitCost() {
+            return memUnitCost;
+        }
+
+        public void setMemUnitCost(double memUnitCost) {
+            this.memUnitCost = memUnitCost;
+        }
+
+        public double getBwUnitCost() {
+            return bwUnitCost;
+        }
+
+        public void setBwUnitCost(double bwUnitCost) {
+            this.bwUnitCost = bwUnitCost;
+        }
+
+        public double getFailureWeight() {
+            return failureWeight;
+        }
+
+        public void setFailureWeight(double failureWeight) {
+            this.failureWeight = failureWeight;
+        }
+
+        public double getMigrationRestoreFactor() {
+            return migrationRestoreFactor;
+        }
+
+        public void setMigrationRestoreFactor(double migrationRestoreFactor) {
+            this.migrationRestoreFactor = migrationRestoreFactor;
+        }
+
+        public double getHistoricalPenaltyWeight() {
+            return historicalPenaltyWeight;
+        }
+
+        public void setHistoricalPenaltyWeight(double historicalPenaltyWeight) {
+            this.historicalPenaltyWeight = historicalPenaltyWeight;
+        }
     }
 
     public static class TaskConfig {
         private int tasksPerEdge = 5;
         private double meanInterArrivalSeconds = 120;
+        private double jitterPercent = 0;
         private ContainerProfile defaultProfile = new ContainerProfile();
+        private Range cpuMiRange = new Range();
+        private Range ramRange = new Range();
+        private Range bandwidthRange = new Range();
+        private Range containerSizeRange = new Range();
+        private Range deadlineRange = new Range();
 
         public int getTasksPerEdge() {
             return tasksPerEdge;
@@ -197,12 +302,60 @@ public class SimulationConfig {
             this.meanInterArrivalSeconds = meanInterArrivalSeconds;
         }
 
+        public double getJitterPercent() {
+            return jitterPercent;
+        }
+
+        public void setJitterPercent(double jitterPercent) {
+            this.jitterPercent = jitterPercent;
+        }
+
         public ContainerProfile getDefaultProfile() {
             return defaultProfile;
         }
 
         public void setDefaultProfile(ContainerProfile defaultProfile) {
             this.defaultProfile = defaultProfile;
+        }
+
+        public Range getCpuMiRange() {
+            return cpuMiRange;
+        }
+
+        public void setCpuMiRange(Range cpuMiRange) {
+            this.cpuMiRange = cpuMiRange;
+        }
+
+        public Range getRamRange() {
+            return ramRange;
+        }
+
+        public void setRamRange(Range ramRange) {
+            this.ramRange = ramRange;
+        }
+
+        public Range getBandwidthRange() {
+            return bandwidthRange;
+        }
+
+        public void setBandwidthRange(Range bandwidthRange) {
+            this.bandwidthRange = bandwidthRange;
+        }
+
+        public Range getContainerSizeRange() {
+            return containerSizeRange;
+        }
+
+        public void setContainerSizeRange(Range containerSizeRange) {
+            this.containerSizeRange = containerSizeRange;
+        }
+
+        public Range getDeadlineRange() {
+            return deadlineRange;
+        }
+
+        public void setDeadlineRange(Range deadlineRange) {
+            this.deadlineRange = deadlineRange;
         }
     }
 
@@ -240,6 +393,8 @@ public class SimulationConfig {
         private String name = "fog-node";
         private int servers = 3;
         private ResourceCapacity serverCapacity = new ResourceCapacity();
+        private int concurrencyLimit = Integer.MAX_VALUE;
+        private double capacityMultiplier = 1.0;
 
         public String getName() {
             return name;
@@ -264,6 +419,22 @@ public class SimulationConfig {
         public void setServerCapacity(ResourceCapacity serverCapacity) {
             this.serverCapacity = serverCapacity;
         }
+
+        public int getConcurrencyLimit() {
+            return concurrencyLimit;
+        }
+
+        public void setConcurrencyLimit(int concurrencyLimit) {
+            this.concurrencyLimit = concurrencyLimit;
+        }
+
+        public double getCapacityMultiplier() {
+            return capacityMultiplier;
+        }
+
+        public void setCapacityMultiplier(double capacityMultiplier) {
+            this.capacityMultiplier = capacityMultiplier;
+        }
     }
 
     public static class CloudConfig {
@@ -280,6 +451,9 @@ public class SimulationConfig {
 
     public static class EdgeConfig {
         private int devicesPerFog = 5;
+        private double latencyMs = 0;
+        private double bandwidthMbps = 1000;
+        private double heterogeneityJitter = 0;
 
         public int getDevicesPerFog() {
             return devicesPerFog;
@@ -287,6 +461,142 @@ public class SimulationConfig {
 
         public void setDevicesPerFog(int devicesPerFog) {
             this.devicesPerFog = devicesPerFog;
+        }
+
+        public double getLatencyMs() {
+            return latencyMs;
+        }
+
+        public void setLatencyMs(double latencyMs) {
+            this.latencyMs = latencyMs;
+        }
+
+        public double getBandwidthMbps() {
+            return bandwidthMbps;
+        }
+
+        public void setBandwidthMbps(double bandwidthMbps) {
+            this.bandwidthMbps = bandwidthMbps;
+        }
+
+        public double getHeterogeneityJitter() {
+            return heterogeneityJitter;
+        }
+
+        public void setHeterogeneityJitter(double heterogeneityJitter) {
+            this.heterogeneityJitter = heterogeneityJitter;
+        }
+    }
+
+    public static class SlaConfig {
+        private double epsilon = 1e-3;
+        private double urgencyK = 0.1;
+        private double resourceWeight = 0.6;
+        private double urgencyWeight = 0.4;
+        private double penaltyEta = 1.0;
+
+        public double getEpsilon() {
+            return epsilon;
+        }
+
+        public void setEpsilon(double epsilon) {
+            this.epsilon = epsilon;
+        }
+
+        public double getUrgencyK() {
+            return urgencyK;
+        }
+
+        public void setUrgencyK(double urgencyK) {
+            this.urgencyK = urgencyK;
+        }
+
+        public double getResourceWeight() {
+            return resourceWeight;
+        }
+
+        public void setResourceWeight(double resourceWeight) {
+            this.resourceWeight = resourceWeight;
+        }
+
+        public double getUrgencyWeight() {
+            return urgencyWeight;
+        }
+
+        public void setUrgencyWeight(double urgencyWeight) {
+            this.urgencyWeight = urgencyWeight;
+        }
+
+        public double getPenaltyEta() {
+            return penaltyEta;
+        }
+
+        public void setPenaltyEta(double penaltyEta) {
+            this.penaltyEta = penaltyEta;
+        }
+    }
+
+    public static class Network {
+        private double interFogLatencyMs = 0;
+        private double fogCloudLatencyMs = 0;
+        private double interFogBandwidthMbps = 10000;
+        private double fogCloudBandwidthMbps = 5000;
+
+        public double getInterFogLatencyMs() {
+            return interFogLatencyMs;
+        }
+
+        public void setInterFogLatencyMs(double interFogLatencyMs) {
+            this.interFogLatencyMs = interFogLatencyMs;
+        }
+
+        public double getFogCloudLatencyMs() {
+            return fogCloudLatencyMs;
+        }
+
+        public void setFogCloudLatencyMs(double fogCloudLatencyMs) {
+            this.fogCloudLatencyMs = fogCloudLatencyMs;
+        }
+
+        public double getInterFogBandwidthMbps() {
+            return interFogBandwidthMbps;
+        }
+
+        public void setInterFogBandwidthMbps(double interFogBandwidthMbps) {
+            this.interFogBandwidthMbps = interFogBandwidthMbps;
+        }
+
+        public double getFogCloudBandwidthMbps() {
+            return fogCloudBandwidthMbps;
+        }
+
+        public void setFogCloudBandwidthMbps(double fogCloudBandwidthMbps) {
+            this.fogCloudBandwidthMbps = fogCloudBandwidthMbps;
+        }
+    }
+
+    public static class Range {
+        private double min = 0;
+        private double max = 0;
+
+        public double getMin() {
+            return min;
+        }
+
+        public void setMin(double min) {
+            this.min = min;
+        }
+
+        public double getMax() {
+            return max;
+        }
+
+        public void setMax(double max) {
+            this.max = max;
+        }
+
+        public boolean isConfigured() {
+            return max > min && max > 0;
         }
     }
 }

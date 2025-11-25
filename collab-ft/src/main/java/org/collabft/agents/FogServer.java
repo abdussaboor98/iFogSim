@@ -24,12 +24,15 @@ public class FogServer extends FogDevice {
     private double usedRam;
     private double usedBw;
     private boolean failed;
+    private double cpuFactor = 1.0;
+    private double bwFactor = 1.0;
+    private final int concurrencyLimit;
 
-    public FogServer(String name, ResourceCapacity capacity) throws Exception {
-        this(name, capacity, FogDeviceFactory.build(capacity, new FogLinearPowerModel(100, 10)));
+    public FogServer(String name, ResourceCapacity capacity, int concurrencyLimit) throws Exception {
+        this(name, capacity, concurrencyLimit, FogDeviceFactory.build(capacity, new FogLinearPowerModel(100, 10)));
     }
 
-    private FogServer(String name, ResourceCapacity capacity, Components components) throws Exception {
+    private FogServer(String name, ResourceCapacity capacity, int concurrencyLimit, Components components) throws Exception {
         super(name,
                 components.characteristics(),
                 components.allocationPolicy(),
@@ -39,6 +42,7 @@ public class FogServer extends FogDevice {
                 0,
                 capacity.getRatePerMips());
         this.capacity = capacity;
+        this.concurrencyLimit = concurrencyLimit;
     }
 
     @Override
@@ -47,16 +51,20 @@ public class FogServer extends FogDevice {
             return;
         }
         if (ev.getTag() instanceof CollabSimTags tag && tag == CollabSimTags.RECOVERY_EVENT) {
-            failed = false;
+            recover();
         }
     }
 
     public boolean canHost(ContainerProfile profile) {
-        return !failed && ResourceUtil.feasible(capacity, usedCpu, usedRam, usedBw, profile);
+        return !failed && containers.size() < concurrencyLimit
+                && ResourceUtil.feasible(capacity, usedCpu, usedRam, usedBw, profile, cpuFactor, bwFactor);
     }
 
     public double residualScore(ContainerProfile profile) {
-        return failed ? -1 : ResourceUtil.residualScore(capacity, usedCpu, usedRam, usedBw, profile);
+        if (failed || containers.size() >= concurrencyLimit) {
+            return -1;
+        }
+        return ResourceUtil.residualScore(capacity, usedCpu, usedRam, usedBw, profile, cpuFactor, bwFactor);
     }
 
     public void addContainer(ContainerModule container) {
@@ -79,7 +87,7 @@ public class FogServer extends FogDevice {
     }
 
     public double getCpuLoad() {
-        return usedCpu / capacity.getCpuMips();
+        return usedCpu / (capacity.getCpuMips() * cpuFactor);
     }
 
     public double getMemLoad() {
@@ -87,7 +95,7 @@ public class FogServer extends FogDevice {
     }
 
     public double getBwLoad() {
-        return usedBw / capacity.getBandwidth();
+        return usedBw / (capacity.getBandwidth() * bwFactor);
     }
 
     public void markFailed() {
@@ -96,6 +104,20 @@ public class FogServer extends FogDevice {
 
     public boolean isFailed() {
         return failed;
+    }
+
+    public void degradeCpu(double factor) {
+        this.cpuFactor = factor;
+    }
+
+    public void degradeBandwidth(double factor) {
+        this.bwFactor = factor;
+    }
+
+    public void recover() {
+        this.failed = false;
+        this.cpuFactor = 1.0;
+        this.bwFactor = 1.0;
     }
 
     public ResourceCapacity getCapacity() {

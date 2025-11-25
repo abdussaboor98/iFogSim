@@ -1,7 +1,7 @@
 package org.collabft.model;
 
 /**
- * Payload used to request migration of a container.
+ * Payload used to request migration of a container (bid solicitation).
  */
 public class MigrationRequest {
     private final ContainerModule container;

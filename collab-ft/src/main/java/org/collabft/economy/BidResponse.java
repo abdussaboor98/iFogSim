@@ -8,12 +8,14 @@ public class BidResponse {
     private final String containerId;
     private final boolean feasible;
     private final double score;
+    private final double cost;
 
-    public BidResponse(int bidderId, String containerId, boolean feasible, double score) {
+    public BidResponse(int bidderId, String containerId, boolean feasible, double score, double cost) {
         this.bidderId = bidderId;
         this.containerId = containerId;
         this.feasible = feasible;
         this.score = score;
+        this.cost = cost;
     }
 
     public int getBidderId() {
@@ -30,5 +32,9 @@ public class BidResponse {
 
     public double getScore() {
         return score;
+    }
+
+    public double getCost() {
+        return cost;
     }
 }

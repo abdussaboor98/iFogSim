@@ -42,12 +42,16 @@ public class GossipAgent extends SimEntity {
         if (nodes.isEmpty()) {
             return;
         }
-        for (int i = 0; i < nodes.size(); i++) {
-            FogNodeController current = nodes.get(i);
-            FogNodeController next = nodes.get((i + 1) % nodes.size());
-            send(next.getId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.GOSSIP_EVENT, current.snapshotLoad());
-            // Control-plane overhead per gossip hop
-            MetricsRegistry.collector().recordGossip(current.getId(), next.getId(), current.snapshotLoad().size(), CloudSim.clock());
+        for (FogNodeController current : nodes) {
+            List<Integer> neighbors = current.getNeighborIds().isEmpty()
+                    ? List.of(nodes.get((nodes.indexOf(current) + 1) % nodes.size()).getId())
+                    : current.getNeighborIds();
+            var table = current.snapshotStateTable();
+            table.putAll(current.snapshotLoad());
+            for (Integer neighborId : neighbors) {
+                send(neighborId, CloudSim.getMinTimeBetweenEvents(), CollabSimTags.GOSSIP_EVENT, new java.util.HashMap<>(table));
+                MetricsRegistry.collector().recordGossip(current.getId(), neighborId, table.size(), CloudSim.clock());
+            }
         }
     }
 }

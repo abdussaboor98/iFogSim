@@ -21,6 +21,7 @@ public class ContainerModule extends AppModule {
     private double arrivalTime;
     private double migrationStart;
     private String migrationTrigger = "";
+    private boolean paused;
 
     public ContainerModule(String name, String appId, int userId, ContainerProfile profile) {
         this(name, appId, userId, profile, profile.getDeadlineSeconds(), new TupleScheduler(profile.getCpuMips(), 1));
@@ -83,5 +84,13 @@ public class ContainerModule extends AppModule {
 
     public void setMigrationTrigger(String migrationTrigger) {
         this.migrationTrigger = migrationTrigger;
+    }
+
+    public boolean isPaused() {
+        return paused;
+    }
+
+    public void setPaused(boolean paused) {
+        this.paused = paused;
     }
 }

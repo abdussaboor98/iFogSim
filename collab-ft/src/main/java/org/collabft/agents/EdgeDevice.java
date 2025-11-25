@@ -3,6 +3,7 @@ package org.collabft.agents;
 import org.cloudbus.cloudsim.core.CloudSim;
 import org.cloudbus.cloudsim.core.SimEvent;
 import org.collabft.events.CollabSimTags;
+import org.collabft.config.SimulationConfig;
 import org.collabft.model.ContainerProfile;
 import org.collabft.model.ResourceCapacity;
 import org.collabft.model.TaskProfile;
@@ -18,18 +19,20 @@ import java.util.Random;
  * Generates tasks and offloads them to its mapped FogNodeController.
  */
 public class EdgeDevice extends FogDevice {
-    private final ContainerProfile profile;
+    private final ContainerProfile baseProfile;
+    private final SimulationConfig.TaskConfig taskConfig;
+    private final SimulationConfig.EdgeConfig edgeConfig;
     private final int tasksToSend;
     private final double meanInterArrival;
     private final Random random;
     private int sentCount = 0;
 
-    public EdgeDevice(String name, ResourceCapacity capacity, ContainerProfile profile, int tasksToSend, double meanInterArrival, long seed) throws Exception {
-        this(name, capacity, profile, tasksToSend, meanInterArrival, seed,
+    public EdgeDevice(String name, ResourceCapacity capacity, ContainerProfile profile, SimulationConfig.TaskConfig taskConfig, SimulationConfig.EdgeConfig edgeConfig, long seed) throws Exception {
+        this(name, capacity, profile, taskConfig, edgeConfig, seed,
                 FogDeviceFactory.build(capacity, new FogLinearPowerModel(40, 5)));
     }
 
-    private EdgeDevice(String name, ResourceCapacity capacity, ContainerProfile profile, int tasksToSend, double meanInterArrival, long seed,
+    private EdgeDevice(String name, ResourceCapacity capacity, ContainerProfile profile, SimulationConfig.TaskConfig taskConfig, SimulationConfig.EdgeConfig edgeConfig, long seed,
                        Components components) throws Exception {
         super(name,
                 components.characteristics(),
@@ -39,9 +42,11 @@ public class EdgeDevice extends FogDevice {
                 capacity.getDownlinkBandwidth(),
                 0,
                 capacity.getRatePerMips());
-        this.profile = profile;
-        this.tasksToSend = tasksToSend;
-        this.meanInterArrival = meanInterArrival;
+        this.baseProfile = profile;
+        this.taskConfig = taskConfig;
+        this.edgeConfig = edgeConfig;
+        this.tasksToSend = taskConfig.getTasksPerEdge();
+        this.meanInterArrival = taskConfig.getMeanInterArrivalSeconds();
         this.random = new Random(seed);
     }
 
@@ -60,14 +65,50 @@ public class EdgeDevice extends FogDevice {
         if (sentCount >= tasksToSend) {
             return;
         }
-        send(getParentId(), delay, CollabSimTags.TASK_ARRIVAL_EVENT, new TaskProfile(profile, CloudSim.clock() + delay));
+        ContainerProfile sampled = sampleProfile();
+        double transmissionSeconds = sampled.getContainerSizeMb() / Math.max(1, edgeConfig.getBandwidthMbps());
+        double latencySeconds = edgeConfig.getLatencyMs() / 1000.0;
+        double totalDelay = delay + transmissionSeconds + latencySeconds;
+        send(getParentId(), totalDelay, CollabSimTags.TASK_ARRIVAL_EVENT, new TaskProfile(sampled, CloudSim.clock() + totalDelay));
         sentCount++;
-        double nextDelay = exponential(meanInterArrival);
+        double nextDelay = applyJitter(exponential(meanInterArrival));
         scheduleNext(delay + nextDelay);
     }
 
     private double exponential(double mean) {
         double u = random.nextDouble();
         return -mean * Math.log(1 - u);
+    }
+
+    private double applyJitter(double base) {
+        double jitter = base * (taskConfig.getJitterPercent() / 100.0);
+        double offset = (random.nextDouble() * 2 - 1) * jitter; // +/- jitter
+        return Math.max(0, base + offset);
+    }
+
+    private ContainerProfile sampleProfile() {
+        ContainerProfile p = new ContainerProfile();
+        p.setCpuMips(sample(taskConfig.getCpuMiRange(), baseProfile.getCpuMips()));
+        p.setRamMb((int) sample(taskConfig.getRamRange(), baseProfile.getRamMb()));
+        p.setBandwidth(sample(taskConfig.getBandwidthRange(), baseProfile.getBandwidth()));
+        p.setContainerSizeMb(sample(taskConfig.getContainerSizeRange(), baseProfile.getContainerSizeMb()));
+        p.setDeadlineSeconds(sample(taskConfig.getDeadlineRange(), baseProfile.getDeadlineSeconds()));
+        return p;
+    }
+
+    private double sample(SimulationConfig.Range range, double fallback) {
+        if (range == null || !range.isConfigured()) {
+            return applyEdgeHeterogeneity(fallback);
+        }
+        double v = range.getMin() + random.nextDouble() * (range.getMax() - range.getMin());
+        return applyEdgeHeterogeneity(v);
+    }
+
+    private double applyEdgeHeterogeneity(double v) {
+        double jitter = edgeConfig.getHeterogeneityJitter();
+        if (jitter <= 0) return v;
+        double delta = v * (jitter / 100.0);
+        double offset = (random.nextDouble() * 2 - 1) * delta;
+        return Math.max(0, v + offset);
     }
 }

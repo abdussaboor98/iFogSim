@@ -5,6 +5,9 @@ import org.cloudbus.cloudsim.core.SimEvent;
 import org.collabft.events.CollabSimTags;
 import org.collabft.model.ContainerModule;
 import org.collabft.model.MigrationRequest;
+import org.collabft.model.MigrationTransfer;
+import org.collabft.metrics.MetricsCollector;
+import org.collabft.config.SimulationConfig;
 
 import java.util.List;
 
@@ -14,11 +17,13 @@ import java.util.List;
 public class CentralCloudScheduler extends SimEntity {
     private final List<FogNodeController> controllers;
     private final CloudDevice cloud;
+    private final SimulationConfig.Network network;
 
-    public CentralCloudScheduler(String name, List<FogNodeController> controllers, CloudDevice cloud) {
+    public CentralCloudScheduler(String name, List<FogNodeController> controllers, CloudDevice cloud, SimulationConfig.Network network) {
         super(name);
         this.controllers = controllers;
         this.cloud = cloud;
+        this.network = network;
     }
 
     @Override
@@ -51,9 +56,17 @@ public class CentralCloudScheduler extends SimEntity {
             }
         }
         if (bestController != null && bestScore > 0) {
-            send(bestController.getId(), 0, CollabSimTags.MIGRATION_START, container);
+            send(bestController.getId(), 0, CollabSimTags.MIGRATION_START,
+                    new MigrationTransfer(container, request.getOriginId(), MetricsCollector.MigrationKind.INTER_FOG,
+                            Math.min(bestController.getCapacity().getUplinkBandwidth(), network.getInterFogBandwidthMbps()),
+                            network.getInterFogLatencyMs() / 1000.0,
+                            container.getMigrationTrigger()));
         } else {
-            send(cloud.getId(), 0, CollabSimTags.MIGRATION_START, container);
+            send(cloud.getId(), 0, CollabSimTags.MIGRATION_START,
+                    new MigrationTransfer(container, request.getOriginId(), MetricsCollector.MigrationKind.CLOUD,
+                            Math.min(cloud.getCapacity().getUplinkBandwidth(), network.getFogCloudBandwidthMbps()),
+                            network.getFogCloudLatencyMs() / 1000.0,
+                            container.getMigrationTrigger()));
         }
     }
 }

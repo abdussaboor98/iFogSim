@@ -28,6 +28,7 @@ public class SimulationMain {
         // Enable console logging so runs show visible progress.
         Log.enable();
         Log.printLine("Starting collab-ft simulation; mode=" + config.getSimulation().getMode());
+        MetricsRegistry.collector().markSimStart(0);
         CloudSim.init(1, Calendar.getInstance(), false);
         CloudSim.terminateSimulation(config.getSimulation().getDurationSeconds());
 
@@ -44,7 +45,15 @@ public class SimulationMain {
             List<FogServer> servers = new ArrayList<>();
             for (int i = 0; i < nodeConfig.getServers(); i++) {
                 ResourceCapacity capacity = nodeConfig.getServerCapacity();
-                FogServer server = new FogServer(nodeConfig.getName() + "-server-" + i, capacity);
+                ResourceCapacity scaled = new ResourceCapacity(
+                        (long) (capacity.getCpuMips() * nodeConfig.getCapacityMultiplier()),
+                        (int) (capacity.getRamMb() * nodeConfig.getCapacityMultiplier()),
+                        (long) (capacity.getBandwidth() * nodeConfig.getCapacityMultiplier()));
+                scaled.setStorageMb(capacity.getStorageMb());
+                scaled.setDownlinkBandwidth(capacity.getDownlinkBandwidth());
+                scaled.setUplinkBandwidth(capacity.getUplinkBandwidth());
+                scaled.setRatePerMips(capacity.getRatePerMips());
+                FogServer server = new FogServer(nodeConfig.getName() + "-server-" + i, scaled, nodeConfig.getConcurrencyLimit());
                 servers.add(server);
                 allServers.add(server);
             }
@@ -63,7 +72,7 @@ public class SimulationMain {
 
         // Optional centralized scheduler
         if (config.getSimulation().getMode() == 2) {
-            CentralCloudScheduler scheduler = new CentralCloudScheduler("central-scheduler", controllers, cloud);
+            CentralCloudScheduler scheduler = new CentralCloudScheduler("central-scheduler", controllers, cloud, config.getNetwork());
             for (FogNodeController controller : controllers) {
                 controller.setSchedulerId(scheduler.getId());
             }
@@ -75,7 +84,7 @@ public class SimulationMain {
                 ContainerProfile profile = config.getTask().getDefaultProfile();
                 ResourceCapacity tiny = new ResourceCapacity(500, 512, 1000);
                 EdgeDevice edge = new EdgeDevice(controller.getName() + "-edge-" + i, tiny, profile,
-                        config.getTask().getTasksPerEdge(), config.getTask().getMeanInterArrivalSeconds(),
+                        config.getTask(), config.getTopology().getEdge(),
                         config.getSimulation().getSeed() + i);
                 edge.setParentId(controller.getId());
             }
@@ -87,10 +96,12 @@ public class SimulationMain {
         }
 
         new FaultInjector("fault-injector", controllers, config.getFault().getMeanTimeBetweenFailureSeconds(),
-                config.getFault().getRecoverySeconds(), config.getFault().getPredictionLeadSeconds(), config.getSimulation().getSeed() + 42);
+                config.getFault().getRecoverySeconds(), config.getFault().getPredictionLeadSeconds(), config.getSimulation().getSeed() + 42,
+                config.getFault().getCpuFailureProb(), config.getFault().getBandwidthDegradationProb(), config.getFault().getServerCrashProb());
 
         CloudSim.startSimulation();
         CloudSim.stopSimulation();
+        MetricsRegistry.collector().markSimFinish(config.getSimulation().getDurationSeconds());
         // Export metrics to logs/metrics_*.json
         Path metricsDir = Path.of("logs");
         try {

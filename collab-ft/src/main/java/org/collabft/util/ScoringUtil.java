@@ -1,5 +1,7 @@
 package org.collabft.util;
 
+import org.cloudbus.cloudsim.core.CloudSim;
+import org.collabft.model.ContainerModule;
 import org.collabft.model.ContainerProfile;
 
 /**
@@ -9,7 +11,8 @@ public final class ScoringUtil {
     private ScoringUtil() {
     }
 
-    public static Weights computeWeights(ContainerProfile profile, double nowSeconds) {
+    public static Weights computeWeights(ContainerModule container, double nowSeconds) {
+        ContainerProfile profile = container.getProfile();
         double total = profile.getCpuMips() + profile.getRamMb() + profile.getBandwidth();
         // p_cpu = R_cpu / (R_cpu + R_mem + R_bw); same for p_mem, p_bw
         double pCpu = profile.getCpuMips() / total;
@@ -18,8 +21,9 @@ public final class ScoringUtil {
 
         double epsilon = 1e-3;
         double k = 0.1;
-        // U = 1 / (T_deadline - T_now + ε); U_norm = min(1, U * k)
-        double u = 1.0 / (profile.getDeadlineSeconds() - nowSeconds + epsilon);
+        double slack = Math.max(epsilon, container.getDeadlineSeconds() - (nowSeconds - container.getArrivalTime()));
+        // U = 1 / slack; U_norm = min(1, U * k)
+        double u = 1.0 / slack;
         double uNorm = Math.min(1.0, u * k);
 
         // γ = p_bw + U_norm * (1 - p_bw)

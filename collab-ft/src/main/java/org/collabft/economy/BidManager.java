@@ -9,6 +9,7 @@ import java.util.*;
  */
 public class BidManager {
     private final Map<String, PendingBid> pending = new HashMap<>();
+    private final Map<String, BidResponse> winners = new HashMap<>();
 
     public void startBid(ContainerModule container, Set<Integer> bidders) {
         pending.put(container.getContainerId(), new PendingBid(container, bidders));
@@ -35,9 +36,7 @@ public class BidManager {
         if (bid == null) {
             return Optional.empty();
         }
-        return bid.responses.stream()
-                .filter(BidResponse::isFeasible)
-                .max(Comparator.comparingDouble(BidResponse::getScore));
+        return selectWinner(bid);
     }
 
     public Optional<BidResponse> pickWinner(String containerId) {
@@ -45,9 +44,14 @@ public class BidManager {
         if (bid == null) {
             return Optional.empty();
         }
+        return selectWinner(bid);
+    }
+
+    private Optional<BidResponse> selectWinner(PendingBid bid) {
         return bid.responses.stream()
                 .filter(BidResponse::isFeasible)
-                .max(Comparator.comparingDouble(BidResponse::getScore));
+                .min(Comparator.<BidResponse>comparingDouble(BidResponse::getCost)
+                        .thenComparing(Comparator.comparingDouble(BidResponse::getScore).reversed()));
     }
 
     public ContainerModule getContainer(String containerId) {
@@ -62,6 +66,27 @@ public class BidManager {
     public Set<Integer> remaining(ContainerModule container) {
         PendingBid bid = pending.get(container.getContainerId());
         return bid == null ? Collections.emptySet() : new HashSet<>(bid.pending);
+    }
+
+    public void recordWinner(String containerId, BidResponse response) {
+        winners.put(containerId, response);
+    }
+
+    public BidResponse getWinner(String containerId) {
+        return winners.get(containerId);
+    }
+
+    public boolean hasPending(String containerId) {
+        return pending.containsKey(containerId);
+    }
+
+    public Set<Integer> bidders(String containerId) {
+        PendingBid bid = pending.get(containerId);
+        return bid == null ? Collections.emptySet() : new HashSet<>(bid.pending);
+    }
+
+    public void clearWinner(String containerId) {
+        winners.remove(containerId);
     }
 
     private static class PendingBid {

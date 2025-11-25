@@ -15,3 +15,5 @@ out/
 .vscode/
 .env
 .m2/
+logs/
+results/

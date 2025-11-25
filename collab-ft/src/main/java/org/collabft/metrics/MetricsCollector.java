@@ -22,6 +22,8 @@ public class MetricsCollector {
     private final List<SlaRecord> sla = new ArrayList<>();
     private final EconomicRecord economic = new EconomicRecord();
     private final Map<String, DecisionLatency> decisionLatency = new HashMap<>();
+    private double simStart = 0;
+    private double simFinish = 0;
 
     /** Record a migration event with classification. */
     public void recordMigration(MigrationKind kind, ContainerModule container, double start, double finish, double overheadCpu, double overheadBw, boolean success, String trigger) {
@@ -75,6 +77,22 @@ public class MetricsCollector {
 
     public Map<String, DecisionLatency> getDecisionLatency() {
         return decisionLatency;
+    }
+
+    public double getSimStart() {
+        return simStart;
+    }
+
+    public double getSimFinish() {
+        return simFinish;
+    }
+
+    public void markSimStart(double t) {
+        simStart = t;
+    }
+
+    public void markSimFinish(double t) {
+        simFinish = t;
     }
 
     /** Export to a simple JSON lines structure for post-processing. */

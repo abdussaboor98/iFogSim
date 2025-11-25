@@ -14,10 +14,22 @@ public class StateTable {
     }
 
     public void update(int nodeId, GossipStateEntry entry) {
-        entries.put(nodeId, entry);
+        GossipStateEntry existing = entries.get(nodeId);
+        if (existing == null || entry.getTimestamp() >= existing.getTimestamp()) {
+            entries.put(nodeId, entry);
+        }
     }
 
     public GossipStateEntry get(int nodeId) {
         return entries.get(nodeId);
+    }
+
+    public void merge(Map<Integer, GossipStateEntry> incoming) {
+        if (incoming == null) {
+            return;
+        }
+        for (Map.Entry<Integer, GossipStateEntry> e : incoming.entrySet()) {
+            update(e.getKey(), e.getValue());
+        }
     }
 }

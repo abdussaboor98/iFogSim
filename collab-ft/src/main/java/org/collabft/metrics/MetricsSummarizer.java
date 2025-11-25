@@ -23,6 +23,9 @@ public final class MetricsSummarizer {
         summary.put("sla", slaSummary(collector));
         summary.put("economic", economicSummary(collector));
         summary.put("scheduling", schedulingSummary(collector));
+        summary.put("availability", availabilitySummary(collector));
+        summary.put("makespan", collector.getSimFinish() - collector.getSimStart());
+        summary.put("loadImbalance", loadImbalance(collector));
 
         Files.writeString(resultsDir.resolve("summary.json"), MetricsCollector.JsonUtil.toJsonObject(summary));
 
@@ -94,5 +97,28 @@ public final class MetricsSummarizer {
         s.put("cloudDecisionLatencyAvg", cloudLatency);
         s.put("decisionsCount", collector.getDecisionLatency().size());
         return s;
+    }
+
+    private static Map<String, Object> availabilitySummary(MetricsCollector collector) {
+        Map<String, Object> a = new HashMap<>();
+        long recovered = collector.getFaults().stream().filter(MetricsCollector.FaultRecord::recovered).count();
+        long totalFaults = collector.getFaults().size();
+        a.put("faults", totalFaults);
+        a.put("recovered", recovered);
+        a.put("availabilityRatio", totalFaults == 0 ? 1.0 : (double) recovered / totalFaults);
+        return a;
+    }
+
+    private static Map<String, Object> loadImbalance(MetricsCollector collector) {
+        Map<String, Object> l = new HashMap<>();
+        Map<String, Long> perFog = new HashMap<>();
+        for (MetricsCollector.MigrationRecord r : collector.getMigrations()) {
+            perFog.put(r.sourceFog(), perFog.getOrDefault(r.sourceFog(), 0L) + 1);
+        }
+        double mean = perFog.values().stream().mapToDouble(Long::doubleValue).average().orElse(0);
+        double variance = perFog.values().stream().mapToDouble(v -> Math.pow(v - mean, 2)).average().orElse(0);
+        l.put("stddev", Math.sqrt(variance));
+        l.put("meanMigrations", mean);
+        return l;
     }
 }
