@@ -17,10 +17,13 @@ public class ContainerModule extends AppModule {
     private final double deadlineSeconds;
     private String hostName;
     private String ownerFog;
+    private int ownerId = -1;
     private double arrivalTime;
     private double migrationStart;
     private String migrationTrigger = "";
     private boolean paused;
+    private int lastBidderId = -1;
+    private double lastBidCost = 0.0;
 
     public ContainerModule(String name, String appId, int userId, ContainerProfile profile) {
         this(name, appId, userId, profile, profile.getDeadlineSeconds(), new TupleScheduler(profile.getCpuMips(), 1));
@@ -61,6 +64,14 @@ public class ContainerModule extends AppModule {
         this.ownerFog = ownerFog;
     }
 
+    public int getOwnerId() {
+        return ownerId;
+    }
+
+    public void setOwnerId(int ownerId) {
+        this.ownerId = ownerId;
+    }
+
     public double getArrivalTime() {
         return arrivalTime;
     }
@@ -91,5 +102,18 @@ public class ContainerModule extends AppModule {
 
     public void setPaused(boolean paused) {
         this.paused = paused;
+    }
+
+    public void recordLastBid(int bidderId, double bidCost) {
+        this.lastBidderId = bidderId;
+        this.lastBidCost = bidCost;
+    }
+
+    public int getLastBidderId() {
+        return lastBidderId;
+    }
+
+    public double getLastBidCost() {
+        return lastBidCost;
     }
 }

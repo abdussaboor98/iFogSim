@@ -56,12 +56,14 @@ public class CentralCloudScheduler extends SimEntity {
             }
         }
         if (bestController != null && bestScore > 0) {
+            container.recordLastBid(bestController.getId(), 0.0);
             send(bestController.getId(), 0, CollabSimTags.MIGRATION_START,
                     new MigrationTransfer(container, request.getOriginId(), sourceName(container, request.getOriginId()), MetricsCollector.MigrationKind.INTER_FOG,
                             Math.min(bestController.getCapacity().getUplinkBandwidth(), network.getInterFogBandwidthMbps()),
                             network.getInterFogLatencyMs() / 1000.0,
                             container.getMigrationTrigger()));
         } else {
+            container.recordLastBid(cloud.getId(), 0.0);
             send(cloud.getId(), 0, CollabSimTags.MIGRATION_START,
                     new MigrationTransfer(container, request.getOriginId(), sourceName(container, request.getOriginId()), MetricsCollector.MigrationKind.CLOUD,
                             Math.min(cloud.getCapacity().getUplinkBandwidth(), network.getFogCloudBandwidthMbps()),

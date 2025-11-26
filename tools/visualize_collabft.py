@@ -20,8 +20,9 @@ out_gif = ROOT / "results" / "plots" / "topology_migrations.gif"
 # Tunables
 WINDOW = 120.0     # seconds shown per frame
 FPS = 15
-DURATION = 5 * 60      # seconds of video
+COMPRESSION_FACTOR = 30  # e.g., 1h sim -> ~2 min video (3600 / 30 = 120s)
 MAX_ARROWS = 50    # limit clutter
+SHOW_DURING_SAVE = True  # display the anim window while saving
 
 
 def load_topology():
@@ -98,6 +99,7 @@ def main():
     latest_loads, load_history = load_latest_loads(load_path)
     resource_history, server_fog = load_resource_history(resources_path)
     fault_windows = build_fault_windows(faults)
+    fault_preds = build_fault_predictions(faults)
     migs = sorted(migs, key=lambda m: m.get("start", 0))
     if not migs:
         print("No migrations found.")
@@ -106,8 +108,9 @@ def main():
     t_min = min(m.get("start", 0) for m in migs)
     t_max = max(m.get("finish", 0) for m in migs)
     total_time = t_max - t_min
-    target_frames = FPS * DURATION
-    step = max(total_time / max(target_frames, 1), 1e-6)
+    # Use 1-second resolution so no sim second is skipped
+    step = 1.0
+    frames = max(int(total_time // step) + 1, 1)
 
     pos = clustered_layout(G)
     type_color = {
@@ -121,9 +124,10 @@ def main():
         for n in G.nodes
     ]
 
-    fig, (ax_net, ax_bar) = plt.subplots(
-        1, 2, figsize=(14, 8), gridspec_kw={"width_ratios": [2.2, 1]}
+    fig, axes = plt.subplots(
+        1, 3, figsize=(16, 8), gridspec_kw={"width_ratios": [1.0, 2.0, 1.0]}
     )
+    ax_info, ax_net, ax_bar = axes
     nx.draw_networkx_edges(G, pos, alpha=0.25, width=1.0, edge_color="#bbbbbb", ax=ax_net)
     nx.draw_networkx_nodes(
         G,
@@ -136,6 +140,7 @@ def main():
     )
     nx.draw_networkx_labels(G, pos, font_size=7, ax=ax_net)
     ax_net.set_title("collab-ft topology with migrations/faults")
+    ax_info.axis("off")
 
     arrow_artists = []
 
@@ -197,6 +202,26 @@ def main():
                     )
                     arrow_artists.append(scat)
 
+        # Fault indicators: yellow ring for imminent predicted, red ring for active failure (stays until recovery)
+        active_set = failed_servers(fault_windows, now)
+        for server in pos.keys():
+            x, y = pos[server]
+            if server in active_set:
+                ring = plt.Circle((x, y), 0.12, fill=False, color="#ff0000", linewidth=2.5, alpha=0.9, zorder=10)
+                ax_net.add_patch(ring)
+                arrow_artists.append(ring)
+                continue
+            entries = fault_preds.get(server)
+            if entries:
+                upcoming = min((e for e in entries if e[1] >= now), default=None, key=lambda e: e[1])
+                if upcoming:
+                    _, fail_time = upcoming
+                    time_until_fail = fail_time - now
+                    if 0 <= time_until_fail <= 60:
+                        ring = plt.Circle((x, y), 0.12, fill=False, color="#ffbf00", linewidth=2.5, alpha=0.9, zorder=10)
+                        ax_net.add_patch(ring)
+                        arrow_artists.append(ring)
+
         # Bar chart for this timestep (per server, grouped by fog)
         ax_bar.clear()
         rows = resources_at_time(resource_history, server_fog, now)
@@ -217,12 +242,47 @@ def main():
         for idx, r in enumerate(rows):
             if r["server"] in failed_now:
                 ax_bar.scatter(1.02, idx + bar_height, marker="X", color="#ff7f0e", s=40, zorder=5, clip_on=False)
+        next_fault = next_pred_fault(fault_preds, now)
+        if next_fault:
+            srv, delta, tpred = next_fault
+            note = f"Next predicted fault: {srv} in {delta:.1f}s (t={tpred:.1f})"
+        else:
+            note = "Next predicted fault: none"
+        ax_bar.text(0.02, 1.05, note, transform=ax_bar.transAxes, fontsize=7, va="bottom", ha="left")
 
         ax_net.set_title(f"collab-ft migrations/faults (t={now:.1f}s)")
+        # Info column
+        ax_info.clear()
+        ax_info.axis("off")
+        total = len(migs)
+        inter = len([m for m in migs if m.get("kind") == "INTER_FOG"])
+        intra = len([m for m in migs if m.get("kind") == "INTRA_FOG"])
+        cloud = len([m for m in migs if m.get("kind") == "CLOUD"])
+        lines = [
+            f"Time: {now:.1f}s",
+            f"Migrations total: {total}",
+            f"Inter-fog: {inter}",
+            f"Intra-fog: {intra}",
+            f"Cloud: {cloud}",
+            note,
+        ]
+        upcoming = faults_in_window(fault_preds, fault_windows, now, horizon=60)
+        if upcoming:
+            lines.append("Faults (<=60s or active):")
+            for srv, delta, fail_at, rec_at, status in upcoming:
+                if status == "active":
+                    detail = f" - {srv} active; recovers at {rec_at:.1f}s"
+                else:
+                    detail = f" - {srv} in {delta:.1f}s (fail at {fail_at:.1f}s)"
+                lines.append(detail)
+        for i, line in enumerate(lines):
+            ax_info.text(0.0, 1.0 - i * 0.1, line, fontsize=9, va="top", ha="left")
 
-    frames = math.ceil((total_time / step))
     ani = animation.FuncAnimation(fig, update, frames=frames, interval=1000 / FPS, blit=False)
     out_mp4.parent.mkdir(parents=True, exist_ok=True)
+    if SHOW_DURING_SAVE:
+        print("Previewing animation; close the window to continue saving...")
+        plt.show(block=True)
     try:
         ani.save(out_mp4, writer="ffmpeg", fps=FPS, dpi=150)
         print(f"Saved {out_mp4}")
@@ -355,7 +415,7 @@ def build_fault_windows(faults):
     for f in faults:
         fail = f.get("failedAt", f.get("time", 0))
         recovery = f.get("recoveryAt", fail + 0.001)
-        server = f.get("server")
+        server = f.get("serverName") or f.get("server")
         if server:
             windows.setdefault(server, []).append((fail, recovery))
     return windows
@@ -370,6 +430,59 @@ def failed_servers(windows, now):
                 failed.add(server)
                 break
     return failed
+
+
+def build_fault_predictions(faults):
+    """Map server -> list of (predictedAt, failedAt) for upcoming faults."""
+    predictions = {}
+    for f in faults:
+        server = f.get("serverName") or f.get("server")
+        predicted_at = f.get("predictedAt", f.get("predictionTime", f.get("time", 0)))
+        failed_at = f.get("failedAt", f.get("failureTime", f.get("time", 0)))
+        if server:
+            predictions.setdefault(server, []).append((predicted_at, failed_at))
+    return predictions
+
+
+def next_pred_fault(predictions, now):
+    """Return (server, delta, time) for the next predicted fault after now."""
+    best = None
+    best_t = None
+    for server, entries in predictions.items():
+        for pred_at, fail_at in entries:
+            if fail_at >= now and (best_t is None or fail_at < best_t):
+                best = server
+                best_t = fail_at
+    if best is None:
+        return None
+    return best, best_t - now, best_t
+
+
+def faults_in_window(predictions, windows, now, horizon=60):
+    """Return list of faults within horizon or currently active."""
+    items = []
+    for server, entries in predictions.items():
+        # active?
+        recs = windows.get(server, [])
+        active_rec = None
+        active_fail = None
+        for fail, rec in recs:
+            if fail <= now <= rec:
+                active_rec = rec
+                active_fail = fail
+                break
+        if active_rec is not None:
+            items.append((server, 0.0, active_fail, active_rec, "active"))
+            continue
+        # upcoming
+        upcoming = min((e for e in entries if e[1] >= now), default=None, key=lambda e: e[1])
+        if upcoming:
+            pred_at, fail_at = upcoming
+            delta = fail_at - now
+            if delta <= horizon:
+                items.append((server, delta, fail_at, None, "upcoming"))
+    items.sort(key=lambda x: (x[1], x[2]))
+    return items
 
 
 if __name__ == "__main__":

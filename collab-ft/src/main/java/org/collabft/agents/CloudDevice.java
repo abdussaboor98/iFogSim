@@ -4,10 +4,7 @@ import org.cloudbus.cloudsim.core.SimEvent;
 import org.cloudbus.cloudsim.core.CloudSim;
 import org.collabft.events.CollabSimTags;
 import org.collabft.economy.BidResponse;
-import org.collabft.model.ContainerModule;
-import org.collabft.model.MigrationRequest;
-import org.collabft.model.MigrationResult;
-import org.collabft.model.MigrationTransfer;
+import org.collabft.model.*;
 import org.collabft.model.ResourceCapacity;
 import org.collabft.metrics.MetricsRegistry;
 import org.collabft.util.FogDeviceFactory;
@@ -59,9 +56,13 @@ public class CloudDevice extends FogDevice {
                             ? module.getProfile().getContainerSizeMb() / transfer.getLinkBandwidthMbps()
                             : 0;
                     double finish = CloudSim.clock() + transferSeconds + transfer.getLatencySeconds();
+                    double execSeconds = computeExecutionSeconds(module);
+                    double completionAt = finish + execSeconds;
                     MetricsRegistry.collector().recordNetwork("migration", transfer.getSourceName(), getName(), module.getProfile().getContainerSizeMb() * 1024 * 1024, CloudSim.clock());
                     send(transfer.getOriginId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_FINISH,
                             new MigrationResult(module, transfer.getKind(), transfer.getSourceName(), getName(), module.getMigrationStart(), finish, 0, module.getProfile().getContainerSizeMb(), true, transfer.getTrigger()));
+                    send(getId(), execSeconds + transferSeconds + transfer.getLatencySeconds(), CollabSimTags.TASK_COMPLETE,
+                            new CompletionNotice(module, getName(), finish, completionAt));
                 }
                 break;
             case MIGRATION_REQUEST:
@@ -69,6 +70,12 @@ public class CloudDevice extends FogDevice {
                     hosted.add(request.getContainer());
                     send(request.getOriginId(), 0, CollabSimTags.BID_RESPONSE,
                             new BidResponse(getId(), request.getContainer().getContainerId(), true, 1.0, 0.0));
+                }
+                break;
+            case TASK_COMPLETE:
+                if (ev.getData() instanceof CompletionNotice notice) {
+                    hosted.remove(notice.getContainer());
+                    send(notice.getContainer().getOwnerId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.TASK_COMPLETE, notice);
                 }
                 break;
             default:
@@ -86,5 +93,12 @@ public class CloudDevice extends FogDevice {
 
     public ResourceCapacity getCapacity() {
         return capacity;
+    }
+
+    private double computeExecutionSeconds(ContainerModule module) {
+        double effectiveCpu = capacity.getCpuMips();
+        double share = effectiveCpu / Math.max(1, hosted.size());
+        double seconds = module.getProfile().getCpuMips() / Math.max(1, share);
+        return Math.max(CloudSim.getMinTimeBetweenEvents(), seconds);
     }
 }

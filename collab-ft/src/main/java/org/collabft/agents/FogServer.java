@@ -1,5 +1,6 @@
 package org.collabft.agents;
 
+import org.cloudbus.cloudsim.core.CloudSim;
 import org.cloudbus.cloudsim.core.SimEvent;
 import org.fog.entities.FogDevice;
 import org.fog.utils.FogLinearPowerModel;
@@ -26,6 +27,8 @@ public class FogServer extends FogDevice {
     private boolean failed;
     private double cpuFactor = 1.0;
     private double bwFactor = 1.0;
+    private boolean faultActive;
+    private double predictedFailureAt = -1;
     private final int concurrencyLimit;
 
     public FogServer(String name, ResourceCapacity capacity, int concurrencyLimit) throws Exception {
@@ -56,12 +59,12 @@ public class FogServer extends FogDevice {
     }
 
     public boolean canHost(ContainerProfile profile) {
-        return !failed && containers.size() < concurrencyLimit
+        return !isFaulted() && containers.size() < concurrencyLimit
                 && ResourceUtil.feasible(capacity, usedCpu, usedRam, usedBw, profile, cpuFactor, bwFactor);
     }
 
     public double residualScore(ContainerProfile profile) {
-        if (failed || containers.size() >= concurrencyLimit) {
+        if (isFaulted() || containers.size() >= concurrencyLimit) {
             return -1;
         }
         return ResourceUtil.residualScore(capacity, usedCpu, usedRam, usedBw, profile, cpuFactor, bwFactor);
@@ -98,19 +101,36 @@ public class FogServer extends FogDevice {
         return usedBw / (capacity.getBandwidth() * bwFactor);
     }
 
-    public void markFailed() {
-        this.failed = true;
+    public void markFaultActive() {
+        this.faultActive = true;
     }
 
-    public boolean isFailed() {
-        return failed;
+    public void markFailed() {
+        this.failed = true;
+        this.faultActive = true;
+    }
+
+    public boolean isFailed() { return failed; }
+
+    public void markPredictedFailure(double failureTime) {
+        this.predictedFailureAt = failureTime;
+    }
+
+    public boolean isPredictedToFail() { return predictedFailureAt >= 0 && CloudSim.clock() < predictedFailureAt; }
+
+    public boolean isFaulted() { return failed || faultActive || isPredictedToFail(); }
+
+    public void clearPrediction() {
+        this.predictedFailureAt = -1;
     }
 
     public void degradeCpu(double factor) {
+        this.faultActive = true;
         this.cpuFactor = factor;
     }
 
     public void degradeBandwidth(double factor) {
+        this.faultActive = true;
         this.bwFactor = factor;
     }
 
@@ -118,9 +138,15 @@ public class FogServer extends FogDevice {
         this.failed = false;
         this.cpuFactor = 1.0;
         this.bwFactor = 1.0;
+        this.faultActive = false;
+        this.predictedFailureAt = -1;
     }
 
     public ResourceCapacity getCapacity() {
         return capacity;
+    }
+
+    public double getCpuFactor() {
+        return cpuFactor;
     }
 }

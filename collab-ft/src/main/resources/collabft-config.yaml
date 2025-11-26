@@ -78,8 +78,8 @@ task:
     min: 30
     max: 80
   deadlineRange:
-    min: 40
-    max: 80
+    min: 10
+    max: 60
 
 topology:
   fogNodes:
