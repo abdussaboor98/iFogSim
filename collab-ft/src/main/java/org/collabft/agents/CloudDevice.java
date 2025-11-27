@@ -9,21 +9,28 @@ import org.collabft.model.*;
 import org.collabft.metrics.MetricsRegistry;
 import org.collabft.util.FogDeviceFactory;
 import org.collabft.util.FogDeviceFactory.Components;
+import org.collabft.util.ResourceUtil;
 import org.fog.entities.FogDevice;
 import org.fog.utils.FogLinearPowerModel;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Queue;
 
 /**
  * Cloud fallback / central scheduler host.
  */
 public class CloudDevice extends FogDevice {
     private final List<ContainerModule> hosted = new ArrayList<>();
+    private final Queue<MigrationTransfer> pending = new ArrayDeque<>();
     private double tokenBalance;
     private final ResourceCapacity capacity;
     private final SimulationConfig.BiddingConfig biddingConfig;
     private final SimulationConfig.Network network;
+    private double usedCpu;
+    private double usedRam;
+    private double usedBw;
 
     public CloudDevice(String name, ResourceCapacity capacity, SimulationConfig.BiddingConfig biddingConfig, SimulationConfig.Network network) throws Exception {
         this(name, capacity, biddingConfig, network, FogDeviceFactory.build(capacity, new FogLinearPowerModel(150, 30)));
@@ -54,19 +61,11 @@ public class CloudDevice extends FogDevice {
         switch (tag) {
             case MIGRATION_START:
                 if (ev.getData() instanceof MigrationTransfer transfer) {
-                    ContainerModule module = transfer.getContainer();
-                    hosted.add(module);
-                    double transferSeconds = transfer.getLinkBandwidthMbps() > 0
-                            ? module.getProfile().getContainerSizeMb() / transfer.getLinkBandwidthMbps()
-                            : 0;
-                    double finish = CloudSim.clock() + transferSeconds + transfer.getLatencySeconds();
-                    double execSeconds = computeExecutionSeconds(module);
-                    double completionAt = finish + execSeconds;
-                    MetricsRegistry.collector().recordNetwork("migration", transfer.getSourceName(), getName(), module.getProfile().getContainerSizeMb() * 1024 * 1024, CloudSim.clock());
-                    send(transfer.getOriginId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_FINISH,
-                            new MigrationResult(module, transfer.getKind(), transfer.getSourceName(), getName(), module.getMigrationStart(), finish, 0, module.getProfile().getContainerSizeMb(), true, transfer.getTrigger()));
-                    send(getId(), execSeconds + transferSeconds + transfer.getLatencySeconds(), CollabSimTags.TASK_COMPLETE,
-                            new CompletionNotice(module, getName(), finish, completionAt));
+                    if (canHost(transfer.getContainer().getProfile())) {
+                        startTransfer(transfer);
+                    } else {
+                        queueTransfer(transfer);
+                    }
                 }
                 break;
             case MIGRATION_REQUEST:
@@ -85,8 +84,12 @@ public class CloudDevice extends FogDevice {
                 break;
             case TASK_COMPLETE:
                 if (ev.getData() instanceof CompletionNotice notice) {
-                    hosted.remove(notice.getContainer());
-                    send(notice.getContainer().getOwnerId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.TASK_COMPLETE, notice);
+                    if (notice.getRunVersion() == notice.getContainer().getRunVersion()) {
+                        release(notice.getContainer());
+                        notice.getContainer().markCompleted();
+                        send(notice.getContainer().getOwnerId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.TASK_COMPLETE, notice);
+                        drainQueue();
+                    }
                 }
                 break;
             default:
@@ -107,10 +110,14 @@ public class CloudDevice extends FogDevice {
     }
 
     private double computeExecutionSeconds(ContainerModule module) {
-        double effectiveCpu = capacity.getCpuMips();
-        double share = effectiveCpu / Math.max(1, hosted.size());
-        double seconds = module.getProfile().getCpuMips() / Math.max(1, share);
+        double share = sharePerContainer();
+        double seconds = module.getRemainingWorkMi() / Math.max(1e-6, share);
         return Math.max(CloudSim.getMinTimeBetweenEvents(), seconds);
+    }
+
+    private double sharePerContainer() {
+        double effectiveCpu = capacity.getCpuMips();
+        return effectiveCpu / Math.max(1, hosted.size());
     }
 
     private BidResponse buildBid(ContainerModule container) {
@@ -128,5 +135,65 @@ public class CloudDevice extends FogDevice {
         double latencyPenalty = latencyPenaltySeconds * biddingConfig.getFailureWeight() * 100;
         double cost = cres + crisk + cmig + latencyPenalty;
         return new BidResponse(getId(), container.getContainerId(), true, 0.1, cost);
+    }
+
+    private boolean canHost(ContainerProfile profile) {
+        return ResourceUtil.feasible(capacity, usedCpu, usedRam, usedBw, profile, 1.0, 1.0);
+    }
+
+    private void startTransfer(MigrationTransfer transfer) {
+        ContainerModule module = transfer.getContainer();
+        addContainer(module);
+        double transferSeconds = transfer.getLinkBandwidthMbps() > 0
+                ? module.getProfile().getContainerSizeMb() / transfer.getLinkBandwidthMbps()
+                : 0;
+        double finish = CloudSim.clock() + transferSeconds + transfer.getLatencySeconds();
+        double execSeconds = computeExecutionSeconds(module);
+        double completionAt = finish + execSeconds;
+        MetricsRegistry.collector().recordNetwork("migration", transfer.getSourceName(), getName(), module.getProfile().getContainerSizeMb() * 1024 * 1024, CloudSim.clock());
+        send(transfer.getOriginId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_FINISH,
+                new MigrationResult(module, transfer.getKind(), transfer.getSourceName(), getName(), module.getMigrationStart(), finish, 0, module.getProfile().getContainerSizeMb(), true, transfer.getTrigger()));
+        module.startRun(finish, sharePerContainer(), execSeconds);
+        send(getId(), execSeconds + transferSeconds + transfer.getLatencySeconds(), CollabSimTags.TASK_COMPLETE,
+                new CompletionNotice(module, getName(), finish, completionAt, module.getRunVersion()));
+    }
+
+    private void addContainer(ContainerModule module) {
+        hosted.add(module);
+        usedCpu += module.getProfile().getCpuMips();
+        usedRam += module.getProfile().getRamMb();
+        usedBw += module.getProfile().getBandwidth();
+        module.setHostName(getName());
+    }
+
+    private void release(ContainerModule module) {
+        hosted.remove(module);
+        usedCpu -= module.getProfile().getCpuMips();
+        usedRam -= module.getProfile().getRamMb();
+        usedBw -= module.getProfile().getBandwidth();
+    }
+
+    private void queueTransfer(MigrationTransfer transfer) {
+        pending.add(transfer);
+    }
+
+    private void drainQueue() {
+        if (pending.isEmpty()) {
+            return;
+        }
+        int attempts = pending.size();
+        for (int i = 0; i < attempts; i++) {
+            MigrationTransfer transfer = pending.peek();
+            if (transfer == null) {
+                pending.poll();
+                continue;
+            }
+            if (canHost(transfer.getContainer().getProfile())) {
+                pending.poll();
+                startTransfer(transfer);
+            } else {
+                break;
+            }
+        }
     }
 }

@@ -70,9 +70,9 @@ public class FogServer extends FogDevice {
 
     public void removeContainer(ContainerModule container) {
         containers.remove(container);
-        usedCpu -= container.getProfile().getCpuMips();
-        usedRam -= container.getProfile().getRamMb();
-        usedBw -= container.getProfile().getBandwidth();
+        usedCpu = Math.max(0, usedCpu - container.getProfile().getCpuMips());
+        usedRam = Math.max(0, usedRam - container.getProfile().getRamMb());
+        usedBw = Math.max(0, usedBw - container.getProfile().getBandwidth());
     }
 
     public List<ContainerModule> getContainers() {
@@ -80,15 +80,15 @@ public class FogServer extends FogDevice {
     }
 
     public double getCpuLoad() {
-        return usedCpu / (capacity.getCpuMips() * cpuFactor);
+        return Math.max(0, usedCpu) / (capacity.getCpuMips() * cpuFactor);
     }
 
     public double getMemLoad() {
-        return usedRam / capacity.getRamMb();
+        return Math.max(0, usedRam) / capacity.getRamMb();
     }
 
     public double getBwLoad() {
-        return usedBw / (capacity.getBandwidth() * bwFactor);
+        return Math.max(0, usedBw) / (capacity.getBandwidth() * bwFactor);
     }
 
     public void markFaultActive() {

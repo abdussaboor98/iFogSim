@@ -8,6 +8,7 @@ import org.collabft.model.MigrationRequest;
 import org.collabft.model.MigrationTransfer;
 import org.collabft.metrics.MetricsCollector;
 import org.collabft.config.SimulationConfig;
+import org.collabft.agents.FogServer;
 
 import java.util.List;
 
@@ -48,10 +49,10 @@ public class CentralCloudScheduler extends SimEntity {
         double bestScore = -1;
         for (FogNodeController controller : controllers) {
             for (FogServer server : controller.getServers()) {
-                if (!server.canHost(container.getProfile())) {
+                double score = server.residualScore(container.getProfile());
+                if (score <= 0) {
                     continue;
                 }
-                double score = server.getAvailableCpu();
                 if (score > bestScore) {
                     bestScore = score;
                     bestController = controller;

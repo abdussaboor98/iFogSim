@@ -15,6 +15,11 @@ public class ContainerModule extends AppModule {
     private final String containerId = UUID.randomUUID().toString();
     private final ContainerProfile profile;
     private final double deadlineSeconds;
+    private double remainingWorkMi;
+    private double lastStartTime = -1;
+    private double expectedFinishTime = -1;
+    private double lastHostShareMips = 0;
+    private int runVersion = 0;
     private String hostName;
     private String ownerFog;
     private int ownerId = -1;
@@ -34,6 +39,7 @@ public class ContainerModule extends AppModule {
                 Math.round(profile.getContainerSizeMb()), "Xen", scheduler, Collections.emptyMap());
         this.profile = profile;
         this.deadlineSeconds = deadlineSeconds;
+        this.remainingWorkMi = profile.getCpuMips();
     }
 
     public String getContainerId() {
@@ -46,6 +52,47 @@ public class ContainerModule extends AppModule {
 
     public double getDeadlineSeconds() {
         return deadlineSeconds;
+    }
+
+    public double getRemainingWorkMi() {
+        return remainingWorkMi;
+    }
+
+    public int getRunVersion() {
+        return runVersion;
+    }
+
+    /**
+     * Record that execution has (re)started on a host so we can credit progress or ignore stale completions.
+     */
+    public void startRun(double startTime, double hostShareMips, double durationSeconds) {
+        this.runVersion++;
+        this.lastStartTime = startTime;
+        this.expectedFinishTime = startTime + durationSeconds;
+        this.lastHostShareMips = hostShareMips;
+    }
+
+    /**
+     * Apply progress up to the given time using the last known host share, updating remaining work.
+     */
+    public void checkpointProgress(double now) {
+        if (remainingWorkMi <= 0 || lastStartTime < 0 || lastHostShareMips <= 0) {
+            return;
+        }
+        double elapsed = Math.max(0, Math.min(now, expectedFinishTime) - lastStartTime);
+        if (elapsed <= 0) {
+            return;
+        }
+        double completedMi = elapsed * lastHostShareMips;
+        remainingWorkMi = Math.max(0, remainingWorkMi - completedMi);
+        lastStartTime = now;
+    }
+
+    public void markCompleted() {
+        remainingWorkMi = 0;
+        lastHostShareMips = 0;
+        expectedFinishTime = -1;
+        lastStartTime = -1;
     }
 
     public String getHostName() {

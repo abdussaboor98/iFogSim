@@ -104,14 +104,14 @@ public class FogNodeController extends FogDevice {
         if (notice.isPrediction()) {
             server.markPredictedFailure(notice.getFailureTime());
             // Preemptively migrate containers before failure hits
-            for (ContainerModule container : new ArrayList<>(server.getContainers())) {
-                server.removeContainer(container);
-                migrateContainer(container, "fault_predicted_" + notice.getType().name().toLowerCase());
-            }
-            return;
+        for (ContainerModule container : new ArrayList<>(server.getContainers())) {
+            checkpointAndRemove(server, container);
+            migrateContainer(container, "fault_predicted_" + notice.getType().name().toLowerCase());
         }
-        server.clearPrediction();
-        server.markFaultActive();
+        return;
+    }
+    server.clearPrediction();
+    server.markFaultActive();
         // Apply actual fault effects
         switch (notice.getType()) {
             case CPU_FAILURE -> server.degradeCpu(0.2); // retain only 20% CPU
@@ -121,7 +121,7 @@ public class FogNodeController extends FogDevice {
             }
         }
         for (ContainerModule container : new ArrayList<>(server.getContainers())) {
-            server.removeContainer(container);
+            checkpointAndRemove(server, container);
             migrateContainer(container, "fault_" + notice.getType().name().toLowerCase());
         }
     }
@@ -231,6 +231,12 @@ public class FogNodeController extends FogDevice {
                 result.isSuccess(),
                 result.getTrigger());
         activeTransfers = Math.max(0, activeTransfers - 1);
+        if (!result.isSuccess()) {
+            ContainerModule container = result.getContainer();
+            container.setMigrationTrigger(result.getTrigger());
+            enqueuePending(container);
+            retryPendingMigrations();
+        }
     }
 
     private void handleTaskComplete(SimEvent ev) {
@@ -238,6 +244,9 @@ public class FogNodeController extends FogDevice {
             return;
         }
         ContainerModule container = notice.getContainer();
+        if (notice.getRunVersion() != container.getRunVersion()) {
+            return;
+        }
         FogServer host = findServer(notice.getHostName());
         boolean hostedHere = host != null && host.getContainers().contains(container);
         if (hostedHere) {
@@ -245,11 +254,13 @@ public class FogNodeController extends FogDevice {
             recordInstantLoad(host);
         }
         if (getId() == container.getOwnerId()) {
+            container.markCompleted();
             settleSlaAndPayment(container, notice.getFinish());
             bidManager.clearWinner(container.getContainerId());
         } else if (hostedHere) {
             send(container.getOwnerId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.TASK_COMPLETE, notice);
         }
+        retryPendingMigrations();
     }
 
     private void handleGossip(SimEvent ev) {
@@ -274,7 +285,10 @@ public class FogNodeController extends FogDevice {
         FogServer target = placeContainerLocally(container);
         if (target == null) {
             migrateContainer(container);
+            return;
         }
+        container.setPaused(false);
+        scheduleCompletion(target, container);
     }
 
     private FogServer selectLocalServer(ContainerProfile profile) {
@@ -307,6 +321,7 @@ public class FogNodeController extends FogDevice {
         container.setMigrationStart(CloudSim.clock());
         container.setMigrationTrigger(trigger);
         container.setPaused(true);
+        checkpointIfHosted(container);
         // Phase 1: try intra-fog
         String fromHost = sourceHost(container);
         FogServer localTarget = placeContainerLocally(container);
@@ -381,16 +396,21 @@ public class FogNodeController extends FogDevice {
     }
 
     private void scheduleCompletion(FogServer host, ContainerModule container, double startDelaySeconds) {
-        double execSeconds = computeExecutionSeconds(host, container);
+        double hostShare = hostShareMips(host);
+        double execSeconds = computeExecutionSeconds(container, hostShare);
         double start = CloudSim.clock() + startDelaySeconds;
         double finish = start + execSeconds;
-        send(getId(), startDelaySeconds + execSeconds, CollabSimTags.TASK_COMPLETE, new CompletionNotice(container, host.getName(), start, finish));
+        container.startRun(start, hostShare, execSeconds);
+        send(getId(), startDelaySeconds + execSeconds, CollabSimTags.TASK_COMPLETE, new CompletionNotice(container, host.getName(), start, finish, container.getRunVersion()));
     }
 
-    private double computeExecutionSeconds(FogServer host, ContainerModule container) {
+    private double hostShareMips(FogServer host) {
         double effectiveCpu = host.getCapacity().getCpuMips() * host.getCpuFactor();
-        double share = effectiveCpu / Math.max(1, host.getContainers().size());
-        double seconds = container.getProfile().getCpuMips() / Math.max(1, share);
+        return effectiveCpu / Math.max(1, host.getContainers().size());
+    }
+
+    private double computeExecutionSeconds(ContainerModule container, double hostShareMips) {
+        double seconds = container.getRemainingWorkMi() / Math.max(1e-6, hostShareMips);
         return Math.max(CloudSim.getMinTimeBetweenEvents(), seconds);
     }
 
@@ -493,6 +513,19 @@ public class FogNodeController extends FogDevice {
             MetricsRegistry.collector().recordLoad(getName(), CloudSim.clock(), self.getCpuLoad(), self.getMemLoad(), self.getBwLoad(), false);
         }
         MetricsRegistry.collector().recordResource(getName(), target.getName(), CloudSim.clock(), target.getCpuLoad(), target.getMemLoad(), target.getBwLoad(), target.getContainers().size());
+    }
+
+    private void checkpointAndRemove(FogServer host, ContainerModule container) {
+        container.checkpointProgress(CloudSim.clock());
+        host.removeContainer(container);
+        recordInstantLoad(host);
+    }
+
+    private void checkpointIfHosted(ContainerModule container) {
+        FogServer host = findServer(container.getHostName());
+        if (host != null && host.getContainers().contains(container)) {
+            checkpointAndRemove(host, container);
+        }
     }
 
     private void settleSlaAndPayment(ContainerModule container, double finishTime) {

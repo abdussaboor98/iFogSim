@@ -8,12 +8,14 @@ public class CompletionNotice {
     private final String hostName;
     private final double start;
     private final double finish;
+    private final int runVersion;
 
-    public CompletionNotice(ContainerModule container, String hostName, double start, double finish) {
+    public CompletionNotice(ContainerModule container, String hostName, double start, double finish, int runVersion) {
         this.container = container;
         this.hostName = hostName;
         this.start = start;
         this.finish = finish;
+        this.runVersion = runVersion;
     }
 
     public ContainerModule getContainer() {
@@ -30,5 +32,9 @@ public class CompletionNotice {
 
     public double getFinish() {
         return finish;
+    }
+
+    public int getRunVersion() {
+        return runVersion;
     }
 }
