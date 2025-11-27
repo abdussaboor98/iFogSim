@@ -37,7 +37,7 @@ public class SimulationMain {
 
         TokenManager tokenManager = new TokenManager();
         ResourceCapacity cloudCap = config.getTopology().getCloud().getCapacity();
-        CloudDevice cloud = new CloudDevice("cloud", cloudCap);
+        CloudDevice cloud = new CloudDevice("cloud", cloudCap, config.getBidding(), config.getNetwork());
         MetricsRegistry.collector(); // initialize
 
         List<FogNodeController> controllers = new ArrayList<>();

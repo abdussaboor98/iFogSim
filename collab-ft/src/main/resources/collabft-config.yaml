@@ -9,9 +9,9 @@ simulation:
 
 gossip:
   # Period between gossip rounds (seconds)
-  intervalSeconds: 60
+  intervalSeconds: 10
   # Entries older than this many intervals are ignored
-  stalenessThresholdIntervals: 3
+  stalenessThresholdIntervals: 7
 
 fault:
   # Prediction horizon Δ before failure occurs

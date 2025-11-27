@@ -1,11 +1,11 @@
 package org.collabft.agents;
 
-import org.cloudbus.cloudsim.core.SimEvent;
 import org.cloudbus.cloudsim.core.CloudSim;
+import org.cloudbus.cloudsim.core.SimEvent;
+import org.collabft.config.SimulationConfig;
 import org.collabft.events.CollabSimTags;
 import org.collabft.economy.BidResponse;
 import org.collabft.model.*;
-import org.collabft.model.ResourceCapacity;
 import org.collabft.metrics.MetricsRegistry;
 import org.collabft.util.FogDeviceFactory;
 import org.collabft.util.FogDeviceFactory.Components;
@@ -22,12 +22,14 @@ public class CloudDevice extends FogDevice {
     private final List<ContainerModule> hosted = new ArrayList<>();
     private double tokenBalance;
     private final ResourceCapacity capacity;
+    private final SimulationConfig.BiddingConfig biddingConfig;
+    private final SimulationConfig.Network network;
 
-    public CloudDevice(String name, ResourceCapacity capacity) throws Exception {
-        this(name, capacity, FogDeviceFactory.build(capacity, new FogLinearPowerModel(150, 30)));
+    public CloudDevice(String name, ResourceCapacity capacity, SimulationConfig.BiddingConfig biddingConfig, SimulationConfig.Network network) throws Exception {
+        this(name, capacity, biddingConfig, network, FogDeviceFactory.build(capacity, new FogLinearPowerModel(150, 30)));
     }
 
-    private CloudDevice(String name, ResourceCapacity capacity, Components components) throws Exception {
+    private CloudDevice(String name, ResourceCapacity capacity, SimulationConfig.BiddingConfig biddingConfig, SimulationConfig.Network network, Components components) throws Exception {
         super(name,
                 components.characteristics(),
                 components.allocationPolicy(),
@@ -37,6 +39,8 @@ public class CloudDevice extends FogDevice {
                 0,
                 capacity.getRatePerMips());
         this.capacity = capacity;
+        this.biddingConfig = biddingConfig;
+        this.network = network;
     }
 
     @Override
@@ -67,9 +71,16 @@ public class CloudDevice extends FogDevice {
                 break;
             case MIGRATION_REQUEST:
                 if (ev.getData() instanceof MigrationRequest request) {
-                    hosted.add(request.getContainer());
-                    send(request.getOriginId(), 0, CollabSimTags.BID_RESPONSE,
-                            new BidResponse(getId(), request.getContainer().getContainerId(), true, 1.0, 0.0));
+                    BidResponse bid = buildBid(request.getContainer());
+                    MetricsRegistry.collector().recordBid(request.getContainer().getContainerId(), getId(), getName(), bid.getScore(), bid.getCost(), bid.isFeasible(), CloudSim.clock());
+                    send(request.getOriginId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.BID_RESPONSE, bid);
+                }
+                break;
+            case BID_REQUEST:
+                if (ev.getData() instanceof MigrationRequest request) {
+                    BidResponse bid = buildBid(request.getContainer());
+                    MetricsRegistry.collector().recordBid(request.getContainer().getContainerId(), getId(), getName(), bid.getScore(), bid.getCost(), bid.isFeasible(), CloudSim.clock());
+                    send(request.getOriginId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.BID_RESPONSE, bid);
                 }
                 break;
             case TASK_COMPLETE:
@@ -100,5 +111,22 @@ public class CloudDevice extends FogDevice {
         double share = effectiveCpu / Math.max(1, hosted.size());
         double seconds = module.getProfile().getCpuMips() / Math.max(1, share);
         return Math.max(CloudSim.getMinTimeBetweenEvents(), seconds);
+    }
+
+    private BidResponse buildBid(ContainerModule container) {
+        ContainerProfile profile = container.getProfile();
+        double cres = profile.getCpuMips() * biddingConfig.getCpuUnitCost()
+                + profile.getRamMb() * biddingConfig.getMemUnitCost()
+                + profile.getBandwidth() * biddingConfig.getBwUnitCost();
+        double crisk = 0; // assume stable cloud capacity
+        double linkBw = Math.max(1, Math.min(capacity.getUplinkBandwidth(), network.getFogCloudBandwidthMbps()));
+        double transferSeconds = profile.getContainerSizeMb() / linkBw;
+        double latencySeconds = network.getFogCloudLatencyMs() / 1000.0;
+        double cmig = transferSeconds + biddingConfig.getMigrationRestoreFactor() * profile.getContainerSizeMb();
+        double latencyPenaltySeconds = transferSeconds + latencySeconds;
+        // Apply a strong multiplier so fog-cloud latency meaningfully increases the bid cost.
+        double latencyPenalty = latencyPenaltySeconds * biddingConfig.getFailureWeight() * 100;
+        double cost = cres + crisk + cmig + latencyPenalty;
+        return new BidResponse(getId(), container.getContainerId(), true, 0.1, cost);
     }
 }

@@ -68,6 +68,11 @@ public class BidManager {
         return bid == null ? Collections.emptySet() : new HashSet<>(bid.pending);
     }
 
+    public boolean isComplete(String containerId) {
+        PendingBid bid = pending.get(containerId);
+        return bid != null && bid.pending.isEmpty();
+    }
+
     public void recordWinner(String containerId, BidResponse response) {
         winners.put(containerId, response);
     }

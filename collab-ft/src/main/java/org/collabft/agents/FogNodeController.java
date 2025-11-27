@@ -141,6 +141,7 @@ public class FogNodeController extends FogDevice {
         }
         boolean feasible = target != null && bestScore > 0;
         double cost = feasible ? computeBidCost(target, container.getProfile()) : Double.MAX_VALUE;
+        MetricsRegistry.collector().recordBid(container.getContainerId(), getId(), getName(), bestScore, cost, feasible, CloudSim.clock());
         send(request.getOriginId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.BID_RESPONSE,
                 new BidResponse(getId(), container.getContainerId(), feasible, bestScore, cost));
     }
@@ -150,22 +151,35 @@ public class FogNodeController extends FogDevice {
             return;
         }
         bidManager.registerResponse(response);
-        Optional<BidResponse> winner = bidManager.pickWinner(response.getContainerId());
-        if (winner.isPresent()) {
-            ContainerModule container = bidManager.getContainer(response.getContainerId());
-            if (container != null) {
-                MetricsCollector.MigrationKind kind = winner.get().getBidderId() == cloudId ? MetricsCollector.MigrationKind.CLOUD : MetricsCollector.MigrationKind.INTER_FOG;
-                double linkBw = effectiveBandwidth(kind);
-                double latency = linkLatency(kind);
-                container.recordLastBid(winner.get().getBidderId(), winner.get().getCost());
-                send(winner.get().getBidderId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_START,
-                        new MigrationTransfer(container, getId(), sourceHost(container), kind, linkBw, latency, container.getMigrationTrigger()));
-                bidManager.recordWinner(container.getContainerId(), winner.get());
-                MetricsRegistry.collector().recordDecisionLatency(container.getContainerId(), container.getMigrationStart(), CloudSim.clock(), mode == 2);
-                bidManager.clear(container.getContainerId());
-                activeTransfers++;
-            }
+        String containerId = response.getContainerId();
+        MetricsRegistry.collector().recordBid(containerId, response.getBidderId(), CloudSim.getEntityName(response.getBidderId()), response.getScore(), response.getCost(), response.isFeasible(), CloudSim.clock());
+        if (!bidManager.isComplete(containerId)) {
+            return;
         }
+        Optional<BidResponse> winner = bidManager.pickWinner(containerId);
+        ContainerModule container = bidManager.getContainer(containerId);
+        if (container == null) {
+            bidManager.clear(containerId);
+            return;
+        }
+        if (winner.isPresent()) {
+            BidResponse win = winner.get();
+            MetricsCollector.MigrationKind kind = win.getBidderId() == cloudId ? MetricsCollector.MigrationKind.CLOUD : MetricsCollector.MigrationKind.INTER_FOG;
+            double linkBw = effectiveBandwidth(kind);
+            double latency = linkLatency(kind);
+            container.recordLastBid(win.getBidderId(), win.getCost());
+            MetricsRegistry.collector().markBidWinner(containerId, win.getBidderId());
+            send(win.getBidderId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_START,
+                    new MigrationTransfer(container, getId(), sourceHost(container), kind, linkBw, latency, container.getMigrationTrigger()));
+            bidManager.recordWinner(container.getContainerId(), win);
+            MetricsRegistry.collector().recordDecisionLatency(container.getContainerId(), container.getMigrationStart(), CloudSim.clock(), mode == 2);
+        } else if (cloudId >= 0) {
+            send(cloudId, CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_START,
+                    new MigrationTransfer(container, getId(), sourceHost(container), MetricsCollector.MigrationKind.CLOUD, effectiveBandwidth(MetricsCollector.MigrationKind.CLOUD), linkLatency(MetricsCollector.MigrationKind.CLOUD), container.getMigrationTrigger()));
+            MetricsRegistry.collector().markBidWinner(containerId, cloudId);
+        }
+        bidManager.clear(containerId);
+        activeTransfers++;
     }
 
     private void handleMigrationStart(SimEvent ev) {
@@ -314,6 +328,12 @@ public class FogNodeController extends FogDevice {
                     + weights.gamma() * (1 - entry.getValue().getBwLoad());
             if (score >= config.getBidding().getSuitabilityThreshold()) {
                 candidates.add(new ScoredNode(entry.getKey(), score));
+            }
+        }
+        // If gossip table is empty or stale, fall back to neighbors so we still solicit fog bids before cloud.
+        if (candidates.isEmpty() && !neighborIds.isEmpty()) {
+            for (Integer neighborId : neighborIds) {
+                candidates.add(new ScoredNode(neighborId, 0.5)); // neutral score; final choice still by bid cost
             }
         }
         candidates.sort(Comparator.comparingDouble(ScoredNode::score).reversed());

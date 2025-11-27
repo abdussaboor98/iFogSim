@@ -22,6 +22,7 @@ public class MetricsCollector {
     private final List<LoadRecord> load = new ArrayList<>();
     private final List<ResourceRecord> resources = new ArrayList<>();
     private final List<NetworkRecord> network = new ArrayList<>();
+    private final List<BidRecord> bids = new ArrayList<>();
     private final EconomicRecord economic = new EconomicRecord();
     private final Map<String, DecisionLatency> decisionLatency = new HashMap<>();
     private double simStart = 0;
@@ -75,6 +76,25 @@ public class MetricsCollector {
         network.add(new NetworkRecord(kind, from, to, bytes, time));
     }
 
+    /** Record a bid response for debugging selection behavior. */
+    public void recordBid(String containerId, int bidderId, String bidderName, double score, double cost, boolean feasible, double time) {
+        recordBid(containerId, bidderId, bidderName, score, cost, feasible, false, time);
+    }
+
+    public void recordBid(String containerId, int bidderId, String bidderName, double score, double cost, boolean feasible, boolean winner, double time) {
+        bids.add(new BidRecord(containerId, bidderId, bidderName, score, cost, feasible, winner, time));
+    }
+
+    /** Mark the winner bid for a container (updates any existing bid rows for that bidder). */
+    public void markBidWinner(String containerId, int bidderId) {
+        for (int i = 0; i < bids.size(); i++) {
+            BidRecord b = bids.get(i);
+            if (b.containerId().equals(containerId) && b.bidderId() == bidderId) {
+                bids.set(i, new BidRecord(b.containerId(), b.bidderId(), b.bidderName(), b.score(), b.cost(), b.feasible(), true, b.time()));
+            }
+        }
+    }
+
     public List<MigrationRecord> getMigrations() {
         return migrations;
     }
@@ -105,6 +125,10 @@ public class MetricsCollector {
 
     public List<Payment> getPayments() {
         return economic.payments;
+    }
+
+    public List<BidRecord> getBids() {
+        return bids;
     }
 
     public Map<String, DecisionLatency> getDecisionLatency() {
@@ -139,6 +163,7 @@ public class MetricsCollector {
         Files.writeString(outDir.resolve("network.csv"), JsonUtil.toCsv(network, "time,kind,from,to,bytes"));
         Files.writeString(outDir.resolve("load.csv"), JsonUtil.toCsv(load, "time,fog,cpuLoad,memLoad,bwLoad,stale"));
         Files.writeString(outDir.resolve("resources.csv"), JsonUtil.toCsv(resources, "time,fog,server,containers,cpuLoad,memLoad,bwLoad"));
+        Files.writeString(outDir.resolve("bids.csv"), JsonUtil.toCsv(bids, "time,containerId,bidderId,bidderName,score,cost,feasible,winner"));
     }
 
     public enum MigrationKind { INTRA_FOG, INTER_FOG, CLOUD }
@@ -166,6 +191,8 @@ public class MetricsCollector {
     public record ResourceRecord(String fogName, String serverName, double time, double cpuLoad, double memLoad, double bwLoad, int containers) { }
 
     public record NetworkRecord(String kind, String from, String to, double bytes, double time) { }
+
+    public record BidRecord(String containerId, int bidderId, String bidderName, double score, double cost, boolean feasible, boolean winner, double time) { }
 
     /** Minimal JSON serializer for structured metrics lines. */
     public static final class JsonUtil {
@@ -239,6 +266,8 @@ public class MetricsCollector {
                     sb.append(l.time()).append(',').append(l.fogName()).append(',').append(l.cpuLoad()).append(',').append(l.memLoad()).append(',').append(l.bwLoad()).append(',').append(l.stale()).append("\n");
                 } else if (row instanceof ResourceRecord r) {
                     sb.append(r.time()).append(',').append(r.fogName()).append(',').append(r.serverName()).append(',').append(r.containers()).append(',').append(r.cpuLoad()).append(',').append(r.memLoad()).append(',').append(r.bwLoad()).append("\n");
+                } else if (row instanceof BidRecord b) {
+                    sb.append(b.time()).append(',').append(b.containerId()).append(',').append(b.bidderId()).append(',').append(b.bidderName()).append(',').append(b.score()).append(',').append(b.cost()).append(',').append(b.feasible()).append(',').append(b.winner()).append("\n");
                 }
             }
             return sb.toString();
