@@ -9,6 +9,7 @@ import org.collabft.economy.TokenManager;
 import org.collabft.metrics.MetricsRegistry;
 import org.collabft.metrics.MetricsSummarizer;
 import org.collabft.model.ContainerProfile;
+import org.collabft.model.Position;
 import org.collabft.model.ResourceCapacity;
 import org.collabft.util.TopologyExporter;
 
@@ -37,7 +38,7 @@ public class SimulationMain {
 
         TokenManager tokenManager = new TokenManager();
         ResourceCapacity cloudCap = config.getTopology().getCloud().getCapacity();
-        CloudDevice cloud = new CloudDevice("cloud", cloudCap);
+        CloudDevice cloud = new CloudDevice("cloud", cloudCap, config.getTopology().getCloud().getLocation(), config.getNetwork());
         MetricsRegistry.collector(); // initialize
 
         List<FogNodeController> controllers = new ArrayList<>();
@@ -62,7 +63,7 @@ public class SimulationMain {
                 servers.add(server);
                 allServers.add(server);
             }
-            FogNodeController controller = new FogNodeController(nodeConfig.getName(), config, nodeConfig.getServerCapacity(), servers, tokenManager);
+            FogNodeController controller = new FogNodeController(nodeConfig.getName(), config, nodeConfig.getServerCapacity(), nodeConfig.getLocation(), servers, tokenManager);
             controller.setCloudId(cloud.getId());
             controllers.add(controller);
             fogIndex++;
@@ -75,9 +76,22 @@ public class SimulationMain {
             current.setNeighborIds(List.of(next.getId()));
         }
 
+        // Location registry for latency calculations
+        Map<Integer, Position> locations = new HashMap<>();
+        locations.put(cloud.getId(), config.getTopology().getCloud().getLocation());
+        for (int i = 0; i < controllers.size(); i++) {
+            FogNodeController controller = controllers.get(i);
+            SimulationConfig.FogNodeConfig nodeConfig = config.getTopology().getFogNodes().get(i);
+            locations.put(controller.getId(), nodeConfig.getLocation());
+        }
+        for (FogNodeController controller : controllers) {
+            controller.setLocations(locations);
+        }
+        cloud.setLocations(locations);
+
         // Optional centralized scheduler
         if (config.getSimulation().getMode() == 2) {
-            CentralCloudScheduler scheduler = new CentralCloudScheduler("central-scheduler", controllers, cloud, config.getNetwork());
+            CentralCloudScheduler scheduler = new CentralCloudScheduler("central-scheduler", controllers, cloud, config.getNetwork(), locations);
             for (FogNodeController controller : controllers) {
                 controller.setSchedulerId(scheduler.getId());
             }

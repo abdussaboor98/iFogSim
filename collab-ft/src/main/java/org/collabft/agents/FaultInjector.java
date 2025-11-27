@@ -56,15 +56,20 @@ public class FaultInjector extends SimEntity {
                 } else {
                     send(notice.getControllerId(), 0, CollabSimTags.FAULT_EVENT, notice);
                     send(notice.getServer().getId(), recoverySeconds, CollabSimTags.RECOVERY_EVENT);
+                    send(getId(), recoverySeconds, CollabSimTags.RECOVERY_EVENT, notice);
                     MetricsRegistry.collector().recordFault(
                             notice.getServer().getName(),
                             notice.getType().name().toLowerCase(),
                             notice.getFailureTime() - leadSeconds,
                             CloudSim.clock(),
                             CloudSim.clock() + recoverySeconds,
-                            true);
+                            false);
                     scheduleNext();
                 }
+            }
+        } else if (ev.getTag() instanceof CollabSimTags tag && tag == CollabSimTags.RECOVERY_EVENT) {
+            if (ev.getData() instanceof FaultNotice notice) {
+                MetricsRegistry.collector().markRecovered(notice.getServer().getName(), CloudSim.clock());
             }
         }
     }

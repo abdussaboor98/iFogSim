@@ -23,6 +23,7 @@ public class MetricsCollector {
     private final List<ResourceRecord> resources = new ArrayList<>();
     private final List<NetworkRecord> network = new ArrayList<>();
     private final EconomicRecord economic = new EconomicRecord();
+    private final List<DroppedRecord> dropped = new ArrayList<>();
     private final Map<String, DecisionLatency> decisionLatency = new HashMap<>();
     private double simStart = 0;
     private double simFinish = 0;
@@ -39,6 +40,17 @@ public class MetricsCollector {
         faults.add(new FaultRecord(serverName, faultType, predictTime, failTime, recoveryTime, recovered));
     }
 
+    /** Mark a previously recorded fault as recovered at the given time. */
+    public void markRecovered(String serverName, double recoveryAt) {
+        for (int i = faults.size() - 1; i >= 0; i--) {
+            FaultRecord fr = faults.get(i);
+            if (fr.serverName().equals(serverName) && !fr.recovered()) {
+                faults.set(i, new FaultRecord(fr.serverName(), fr.faultType(), fr.predictedAt(), fr.failedAt(), recoveryAt, true));
+                break;
+            }
+        }
+    }
+
     /** Record gossip/control plane overhead. */
     public void recordGossip(String sender, String receiver, double sizeBytes, double timestamp, double cpuLoad, double memLoad, double bwLoad, boolean stale) {
         gossips.add(new GossipRecord(sender, receiver, sizeBytes, timestamp, cpuLoad, memLoad, bwLoad, stale));
@@ -48,6 +60,11 @@ public class MetricsCollector {
     /** Record SLA outcome for a task/container. */
     public void recordSla(String containerId, boolean violated, double completionLatency, double deadlineSeconds, double slaValue, double payment) {
         sla.add(new SlaRecord(containerId, !violated, completionLatency, deadlineSeconds, slaValue, payment));
+    }
+
+    /** Record a dropped/missed task that could not be migrated. */
+    public void recordDropped(String containerId, String reason, double time, String ownerFog) {
+        dropped.add(new DroppedRecord(containerId, reason, time, ownerFog));
     }
 
     /** Record bidding payments/tokens. */
@@ -107,6 +124,10 @@ public class MetricsCollector {
         return economic.payments;
     }
 
+    public List<DroppedRecord> getDropped() {
+        return dropped;
+    }
+
     public Map<String, DecisionLatency> getDecisionLatency() {
         return decisionLatency;
     }
@@ -139,6 +160,7 @@ public class MetricsCollector {
         Files.writeString(outDir.resolve("network.csv"), JsonUtil.toCsv(network, "time,kind,from,to,bytes"));
         Files.writeString(outDir.resolve("load.csv"), JsonUtil.toCsv(load, "time,fog,cpuLoad,memLoad,bwLoad,stale"));
         Files.writeString(outDir.resolve("resources.csv"), JsonUtil.toCsv(resources, "time,fog,server,containers,cpuLoad,memLoad,bwLoad"));
+        Files.writeString(outDir.resolve("dropped.json"), JsonUtil.toJsonLines(dropped));
     }
 
     public enum MigrationKind { INTRA_FOG, INTER_FOG, CLOUD }
@@ -158,6 +180,8 @@ public class MetricsCollector {
     public record EconomicRecord(List<Payment> payments) {
         public EconomicRecord() { this(new ArrayList<>()); }
     }
+
+    public record DroppedRecord(String containerId, String reason, double time, String ownerFog) { }
 
     public record DecisionLatency(double started, double finished, boolean centralized) { }
 

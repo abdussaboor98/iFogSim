@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Builds summary.json and plots/ placeholders as specified in METRICS.md.
@@ -26,6 +27,7 @@ public final class MetricsSummarizer {
         summary.put("availability", availabilitySummary(collector));
         summary.put("makespan", collector.getSimFinish() - collector.getSimStart());
         summary.put("loadImbalance", loadImbalance(collector));
+        summary.put("dropped", droppedSummary(collector));
 
         Files.writeString(resultsDir.resolve("summary.json"), MetricsCollector.JsonUtil.toJsonObject(summary));
 
@@ -122,5 +124,14 @@ public final class MetricsSummarizer {
         l.put("stddev", Math.sqrt(variance));
         l.put("meanMigrations", mean);
         return l;
+    }
+
+    private static Map<String, Object> droppedSummary(MetricsCollector collector) {
+        Map<String, Object> d = new HashMap<>();
+        d.put("count", collector.getDropped().size());
+        Map<String, Long> byReason = collector.getDropped().stream()
+                .collect(Collectors.groupingBy(MetricsCollector.DroppedRecord::reason, Collectors.counting()));
+        d.put("byReason", byReason);
+        return d;
     }
 }

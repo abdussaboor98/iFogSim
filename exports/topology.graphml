@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns">
   <key id="type" for="node" attr.name="type" attr.type="string"/>
+  <key id="x" for="node" attr.name="x" attr.type="double"/>
+  <key id="y" for="node" attr.name="y" attr.type="double"/>
   <key id="bandwidth" for="edge" attr.name="bandwidthMbps" attr.type="double"/>
   <key id="latency" for="edge" attr.name="latencyMs" attr.type="double"/>
   <graph id="collabft" edgedefault="undirected">
-    <node id="cloud"><data key="type">cloud</data></node>
-    <node id="fog-1"><data key="type">fog-node</data></node>
+    <node id="cloud"><data key="type">cloud</data><data key="x">200.0</data><data key="y">200.0</data></node>
+    <node id="fog-1"><data key="type">fog-node</data><data key="x">0.0</data><data key="y">0.0</data></node>
     <node id="fog-1-server-0"><data key="type">fog-server</data></node>
     <node id="fog-1-server-1"><data key="type">fog-server</data></node>
     <node id="fog-1-server-2"><data key="type">fog-server</data></node>
@@ -16,7 +18,7 @@
     <node id="fog-1-edge-3"><data key="type">edge-device</data></node>
     <node id="fog-1-edge-4"><data key="type">edge-device</data></node>
     <node id="fog-1-edge-5"><data key="type">edge-device</data></node>
-    <node id="fog-2"><data key="type">fog-node</data></node>
+    <node id="fog-2"><data key="type">fog-node</data><data key="x">2.0</data><data key="y">1.0</data></node>
     <node id="fog-2-server-0"><data key="type">fog-server</data></node>
     <node id="fog-2-server-1"><data key="type">fog-server</data></node>
     <node id="fog-2-edge-0"><data key="type">edge-device</data></node>
@@ -25,7 +27,7 @@
     <node id="fog-2-edge-3"><data key="type">edge-device</data></node>
     <node id="fog-2-edge-4"><data key="type">edge-device</data></node>
     <node id="fog-2-edge-5"><data key="type">edge-device</data></node>
-    <node id="fog-3"><data key="type">fog-node</data></node>
+    <node id="fog-3"><data key="type">fog-node</data><data key="x">4.0</data><data key="y">2.0</data></node>
     <node id="fog-3-server-0"><data key="type">fog-server</data></node>
     <node id="fog-3-server-1"><data key="type">fog-server</data></node>
     <node id="fog-3-edge-0"><data key="type">edge-device</data></node>
@@ -34,7 +36,7 @@
     <node id="fog-3-edge-3"><data key="type">edge-device</data></node>
     <node id="fog-3-edge-4"><data key="type">edge-device</data></node>
     <node id="fog-3-edge-5"><data key="type">edge-device</data></node>
-    <node id="fog-4"><data key="type">fog-node</data></node>
+    <node id="fog-4"><data key="type">fog-node</data><data key="x">1.0</data><data key="y">4.0</data></node>
     <node id="fog-4-server-0"><data key="type">fog-server</data></node>
     <node id="fog-4-server-1"><data key="type">fog-server</data></node>
     <node id="fog-4-server-2"><data key="type">fog-server</data></node>
@@ -47,7 +49,7 @@
     <node id="fog-4-edge-3"><data key="type">edge-device</data></node>
     <node id="fog-4-edge-4"><data key="type">edge-device</data></node>
     <node id="fog-4-edge-5"><data key="type">edge-device</data></node>
-    <node id="fog-5"><data key="type">fog-node</data></node>
+    <node id="fog-5"><data key="type">fog-node</data><data key="x">3.0</data><data key="y">5.0</data></node>
     <node id="fog-5-server-0"><data key="type">fog-server</data></node>
     <node id="fog-5-server-1"><data key="type">fog-server</data></node>
     <node id="fog-5-edge-0"><data key="type">edge-device</data></node>
@@ -56,7 +58,7 @@
     <node id="fog-5-edge-3"><data key="type">edge-device</data></node>
     <node id="fog-5-edge-4"><data key="type">edge-device</data></node>
     <node id="fog-5-edge-5"><data key="type">edge-device</data></node>
-    <node id="fog-6"><data key="type">fog-node</data></node>
+    <node id="fog-6"><data key="type">fog-node</data><data key="x">6.0</data><data key="y">4.0</data></node>
     <node id="fog-6-server-0"><data key="type">fog-server</data></node>
     <node id="fog-6-server-1"><data key="type">fog-server</data></node>
     <node id="fog-6-server-2"><data key="type">fog-server</data></node>
@@ -67,68 +69,68 @@
     <node id="fog-6-edge-3"><data key="type">edge-device</data></node>
     <node id="fog-6-edge-4"><data key="type">edge-device</data></node>
     <node id="fog-6-edge-5"><data key="type">edge-device</data></node>
-    <edge source="cloud" target="fog-1"><data key="bandwidth">3000.0</data><data key="latency">40.0</data></edge>
-    <edge source="cloud" target="fog-2"><data key="bandwidth">3000.0</data><data key="latency">40.0</data></edge>
-    <edge source="cloud" target="fog-3"><data key="bandwidth">3000.0</data><data key="latency">40.0</data></edge>
-    <edge source="cloud" target="fog-4"><data key="bandwidth">3000.0</data><data key="latency">40.0</data></edge>
-    <edge source="cloud" target="fog-5"><data key="bandwidth">3000.0</data><data key="latency">40.0</data></edge>
-    <edge source="cloud" target="fog-6"><data key="bandwidth">3000.0</data><data key="latency">40.0</data></edge>
-    <edge source="fog-1" target="fog-2"><data key="bandwidth">8000.0</data><data key="latency">5.0</data></edge>
-    <edge source="fog-2" target="fog-3"><data key="bandwidth">8000.0</data><data key="latency">5.0</data></edge>
-    <edge source="fog-3" target="fog-4"><data key="bandwidth">8000.0</data><data key="latency">5.0</data></edge>
-    <edge source="fog-4" target="fog-5"><data key="bandwidth">8000.0</data><data key="latency">5.0</data></edge>
-    <edge source="fog-5" target="fog-6"><data key="bandwidth">8000.0</data><data key="latency">5.0</data></edge>
-    <edge source="fog-6" target="fog-1"><data key="bandwidth">8000.0</data><data key="latency">5.0</data></edge>
-    <edge source="fog-1" target="fog-1-server-0"><data key="bandwidth">8000.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-1" target="fog-1-server-1"><data key="bandwidth">8000.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-1" target="fog-1-server-2"><data key="bandwidth">8000.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-1" target="fog-1-server-3"><data key="bandwidth">8000.0</data><data key="latency">0.0</data></edge>
+    <edge source="cloud" target="fog-1"><data key="bandwidth">800.0</data><data key="latency">141.9213562373095</data></edge>
+    <edge source="cloud" target="fog-2"><data key="bandwidth">800.0</data><data key="latency">140.86114134617173</data></edge>
+    <edge source="cloud" target="fog-3"><data key="bandwidth">800.0</data><data key="latency">139.80183056945089</data></edge>
+    <edge source="cloud" target="fog-4"><data key="bandwidth">800.0</data><data key="latency">140.15761704969765</data></edge>
+    <edge source="cloud" target="fog-5"><data key="bandwidth">800.0</data><data key="latency">139.09473294465414</data></edge>
+    <edge source="cloud" target="fog-6"><data key="bandwidth">800.0</data><data key="latency">138.38763541376724</data></edge>
+    <edge source="fog-1" target="fog-2"><data key="bandwidth">30000.0</data><data key="latency">1.618033988749895</data></edge>
+    <edge source="fog-2" target="fog-3"><data key="bandwidth">30000.0</data><data key="latency">1.618033988749895</data></edge>
+    <edge source="fog-3" target="fog-4"><data key="bandwidth">30000.0</data><data key="latency">2.302775637731995</data></edge>
+    <edge source="fog-4" target="fog-5"><data key="bandwidth">30000.0</data><data key="latency">1.618033988749895</data></edge>
+    <edge source="fog-5" target="fog-6"><data key="bandwidth">30000.0</data><data key="latency">2.08113883008419</data></edge>
+    <edge source="fog-6" target="fog-1"><data key="bandwidth">30000.0</data><data key="latency">4.10555127546399</data></edge>
+    <edge source="fog-1" target="fog-1-server-0"><data key="bandwidth">12000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-1" target="fog-1-server-1"><data key="bandwidth">12000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-1" target="fog-1-server-2"><data key="bandwidth">12000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-1" target="fog-1-server-3"><data key="bandwidth">12000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-1" target="fog-1-edge-0"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-1" target="fog-1-edge-1"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-1" target="fog-1-edge-2"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-1" target="fog-1-edge-3"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-1" target="fog-1-edge-4"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-1" target="fog-1-edge-5"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-2" target="fog-2-server-0"><data key="bandwidth">8000.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-2" target="fog-2-server-1"><data key="bandwidth">8000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-2" target="fog-2-server-0"><data key="bandwidth">12000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-2" target="fog-2-server-1"><data key="bandwidth">12000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-2" target="fog-2-edge-0"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-2" target="fog-2-edge-1"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-2" target="fog-2-edge-2"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-2" target="fog-2-edge-3"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-2" target="fog-2-edge-4"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-2" target="fog-2-edge-5"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-3" target="fog-3-server-0"><data key="bandwidth">12500.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-3" target="fog-3-server-1"><data key="bandwidth">12500.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-3" target="fog-3-server-0"><data key="bandwidth">16000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-3" target="fog-3-server-1"><data key="bandwidth">16000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-3" target="fog-3-edge-0"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-3" target="fog-3-edge-1"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-3" target="fog-3-edge-2"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-3" target="fog-3-edge-3"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-3" target="fog-3-edge-4"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-3" target="fog-3-edge-5"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-4" target="fog-4-server-0"><data key="bandwidth">8000.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-4" target="fog-4-server-1"><data key="bandwidth">8000.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-4" target="fog-4-server-2"><data key="bandwidth">8000.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-4" target="fog-4-server-3"><data key="bandwidth">8000.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-4" target="fog-4-server-4"><data key="bandwidth">8000.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-4" target="fog-4-server-5"><data key="bandwidth">8000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-4" target="fog-4-server-0"><data key="bandwidth">12000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-4" target="fog-4-server-1"><data key="bandwidth">12000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-4" target="fog-4-server-2"><data key="bandwidth">12000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-4" target="fog-4-server-3"><data key="bandwidth">12000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-4" target="fog-4-server-4"><data key="bandwidth">12000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-4" target="fog-4-server-5"><data key="bandwidth">12000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-4" target="fog-4-edge-0"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-4" target="fog-4-edge-1"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-4" target="fog-4-edge-2"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-4" target="fog-4-edge-3"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-4" target="fog-4-edge-4"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-4" target="fog-4-edge-5"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-5" target="fog-5-server-0"><data key="bandwidth">8000.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-5" target="fog-5-server-1"><data key="bandwidth">8000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-5" target="fog-5-server-0"><data key="bandwidth">12000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-5" target="fog-5-server-1"><data key="bandwidth">12000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-5" target="fog-5-edge-0"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-5" target="fog-5-edge-1"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-5" target="fog-5-edge-2"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-5" target="fog-5-edge-3"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-5" target="fog-5-edge-4"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-5" target="fog-5-edge-5"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-6" target="fog-6-server-0"><data key="bandwidth">8000.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-6" target="fog-6-server-1"><data key="bandwidth">8000.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-6" target="fog-6-server-2"><data key="bandwidth">8000.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-6" target="fog-6-server-3"><data key="bandwidth">8000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-6" target="fog-6-server-0"><data key="bandwidth">12000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-6" target="fog-6-server-1"><data key="bandwidth">12000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-6" target="fog-6-server-2"><data key="bandwidth">12000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-6" target="fog-6-server-3"><data key="bandwidth">12000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-6" target="fog-6-edge-0"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-6" target="fog-6-edge-1"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-6" target="fog-6-edge-2"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>

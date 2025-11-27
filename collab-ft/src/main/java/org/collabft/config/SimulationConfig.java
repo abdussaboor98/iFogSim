@@ -1,6 +1,7 @@
 package org.collabft.config;
 
 import org.collabft.model.ContainerProfile;
+import org.collabft.model.Position;
 import org.collabft.model.ResourceCapacity;
 
 import java.util.ArrayList;
@@ -395,6 +396,7 @@ public class SimulationConfig {
         private ResourceCapacity serverCapacity = new ResourceCapacity();
         private int concurrencyLimit = Integer.MAX_VALUE;
         private double capacityMultiplier = 1.0;
+        private Position location = new Position();
 
         public String getName() {
             return name;
@@ -435,10 +437,19 @@ public class SimulationConfig {
         public void setCapacityMultiplier(double capacityMultiplier) {
             this.capacityMultiplier = capacityMultiplier;
         }
+
+        public Position getLocation() {
+            return location;
+        }
+
+        public void setLocation(Position location) {
+            this.location = location;
+        }
     }
 
     public static class CloudConfig {
         private ResourceCapacity capacity = new ResourceCapacity(10000, 65536, 100000);
+        private Position location = new Position();
 
         public ResourceCapacity getCapacity() {
             return capacity;
@@ -446,6 +457,14 @@ public class SimulationConfig {
 
         public void setCapacity(ResourceCapacity capacity) {
             this.capacity = capacity;
+        }
+
+        public Position getLocation() {
+            return location;
+        }
+
+        public void setLocation(Position location) {
+            this.location = location;
         }
     }
 
@@ -541,6 +560,8 @@ public class SimulationConfig {
         private double fogCloudLatencyMs = 0;
         private double interFogBandwidthMbps = 10000;
         private double fogCloudBandwidthMbps = 5000;
+        private double baseLatencyMs = 0;
+        private double latencyMsPerUnit = 0.5;
 
         public double getInterFogLatencyMs() {
             return interFogLatencyMs;
@@ -572,6 +593,22 @@ public class SimulationConfig {
 
         public void setFogCloudBandwidthMbps(double fogCloudBandwidthMbps) {
             this.fogCloudBandwidthMbps = fogCloudBandwidthMbps;
+        }
+
+        public double getBaseLatencyMs() {
+            return baseLatencyMs;
+        }
+
+        public void setBaseLatencyMs(double baseLatencyMs) {
+            this.baseLatencyMs = baseLatencyMs;
+        }
+
+        public double getLatencyMsPerUnit() {
+            return latencyMsPerUnit;
+        }
+
+        public void setLatencyMsPerUnit(double latencyMsPerUnit) {
+            this.latencyMsPerUnit = latencyMsPerUnit;
         }
     }
 
