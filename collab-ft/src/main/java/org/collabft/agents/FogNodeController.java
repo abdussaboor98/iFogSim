@@ -306,6 +306,10 @@ public class FogNodeController extends FogDevice {
             container.setPaused(false);
             container.recordLastBid(getId(), 0.0);
             scheduleCompletion(localTarget, container);
+            double finish = CloudSim.clock();
+            send(getId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_FINISH,
+                    new MigrationResult(container, MetricsCollector.MigrationKind.INTRA_FOG, fromHost, localTarget.getName(),
+                            container.getMigrationStart(), finish, 0, container.getProfile().getContainerSizeMb(), true, trigger));
             return;
         }
 
