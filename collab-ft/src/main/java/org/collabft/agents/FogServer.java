@@ -29,13 +29,11 @@ public class FogServer extends FogDevice {
     private double bwFactor = 1.0;
     private boolean faultActive;
     private double predictedFailureAt = -1;
-    private final int concurrencyLimit;
-
-    public FogServer(String name, ResourceCapacity capacity, int concurrencyLimit) throws Exception {
-        this(name, capacity, concurrencyLimit, FogDeviceFactory.build(capacity, new FogLinearPowerModel(100, 10)));
+    public FogServer(String name, ResourceCapacity capacity) throws Exception {
+        this(name, capacity, FogDeviceFactory.build(capacity, new FogLinearPowerModel(100, 10)));
     }
 
-    private FogServer(String name, ResourceCapacity capacity, int concurrencyLimit, Components components) throws Exception {
+    private FogServer(String name, ResourceCapacity capacity, Components components) throws Exception {
         super(name,
                 components.characteristics(),
                 components.allocationPolicy(),
@@ -45,7 +43,6 @@ public class FogServer extends FogDevice {
                 0,
                 capacity.getRatePerMips());
         this.capacity = capacity;
-        this.concurrencyLimit = concurrencyLimit;
     }
 
     @Override
@@ -59,15 +56,8 @@ public class FogServer extends FogDevice {
     }
 
     public boolean canHost(ContainerProfile profile) {
-        return !isFaulted() && containers.size() < concurrencyLimit
+        return !isFaulted()
                 && ResourceUtil.feasible(capacity, usedCpu, usedRam, usedBw, profile, cpuFactor, bwFactor);
-    }
-
-    public double residualScore(ContainerProfile profile) {
-        if (isFaulted() || containers.size() >= concurrencyLimit) {
-            return -1;
-        }
-        return ResourceUtil.residualScore(capacity, usedCpu, usedRam, usedBw, profile, cpuFactor, bwFactor);
     }
 
     public void addContainer(ContainerModule container) {
@@ -148,5 +138,32 @@ public class FogServer extends FogDevice {
 
     public double getCpuFactor() {
         return cpuFactor;
+    }
+
+    public double getAvailableCpu() {
+        return capacity.getCpuMips() * cpuFactor - usedCpu;
+    }
+
+    public double getUsedCpu() {
+        return usedCpu;
+    }
+
+    public double getUsedRam() {
+        return usedRam;
+    }
+
+    public double getUsedBw() {
+        return usedBw;
+    }
+
+    public double getBwFactor() {
+        return bwFactor;
+    }
+
+    public double residualScore(ContainerProfile profile) {
+        if (isFaulted()) {
+            return -1;
+        }
+        return ResourceUtil.residualScore(capacity, usedCpu, usedRam, usedBw, profile, cpuFactor, bwFactor);
     }
 }

@@ -47,6 +47,11 @@ public class BidManager {
         return selectWinner(bid);
     }
 
+    public List<BidResponse> getResponses(String containerId) {
+        PendingBid bid = pending.get(containerId);
+        return bid == null ? List.of() : new ArrayList<>(bid.responses);
+    }
+
     private Optional<BidResponse> selectWinner(PendingBid bid) {
         return bid.responses.stream()
                 .filter(BidResponse::isFeasible)

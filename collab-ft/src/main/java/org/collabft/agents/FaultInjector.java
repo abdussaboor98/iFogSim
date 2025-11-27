@@ -23,8 +23,10 @@ public class FaultInjector extends SimEntity {
     private final double bwProb;
     private final double crashProb;
     private final Random random;
+    private final double startDelaySeconds;
+    private boolean first = true;
 
-    public FaultInjector(String name, List<FogNodeController> controllers, double mtbfSeconds, double recoverySeconds, double leadSeconds, long seed, double cpuProb, double bwProb, double crashProb) {
+    public FaultInjector(String name, List<FogNodeController> controllers, double mtbfSeconds, double recoverySeconds, double leadSeconds, long seed, double cpuProb, double bwProb, double crashProb, double startDelaySeconds) {
         super(name);
         this.meanTimeBetweenFailureSeconds = mtbfSeconds;
         this.recoverySeconds = recoverySeconds;
@@ -33,6 +35,7 @@ public class FaultInjector extends SimEntity {
         this.bwProb = bwProb;
         this.crashProb = crashProb;
         this.random = new Random(seed);
+        this.startDelaySeconds = startDelaySeconds;
         for (FogNodeController controller : controllers) {
             for (FogServer server : controller.getServers()) {
                 targets.add(new Target(controller.getId(), server));
@@ -77,9 +80,14 @@ public class FaultInjector extends SimEntity {
         if (targets.isEmpty()) {
             return;
         }
+        double startOffset = 0;
+        if (first && CloudSim.clock() < startDelaySeconds) {
+            startOffset = startDelaySeconds - CloudSim.clock();
+            first = false;
+        }
         Target target = targets.get(random.nextInt(targets.size()));
         FaultNotice.FaultType type = pickType();
-        double failureDelay = exponential(meanTimeBetweenFailureSeconds);
+        double failureDelay = startOffset + exponential(meanTimeBetweenFailureSeconds);
         double predictionDelay = Math.max(CloudSim.getMinTimeBetweenEvents(), failureDelay - leadSeconds);
         double failureTime = CloudSim.clock() + failureDelay;
         // Prediction event

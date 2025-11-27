@@ -33,7 +33,9 @@ public class FogNodeController extends FogDevice {
     private final TokenManager tokenManager;
     private final Map<Integer, Double> slaHistory = new HashMap<>();
     private int activeTransfers = 0;
+    private final Queue<ContainerModule> pendingMigrations = new ArrayDeque<>();
     private List<Integer> neighborIds = new ArrayList<>();
+    private List<Integer> allFogIds = new ArrayList<>();
     private int cloudId = -1;
     private int schedulerId = -1;
 
@@ -73,7 +75,6 @@ public class FogNodeController extends FogDevice {
             case FAULT_EVENT -> handleFault(ev);
             case MIGRATION_REQUEST, BID_REQUEST -> handleMigrationRequest(ev);
             case BID_RESPONSE -> handleBidResponse(ev);
-            case BID_TIMEOUT -> handleBidTimeout(ev);
             case MIGRATION_START -> handleMigrationStart(ev);
             case MIGRATION_FINISH -> handleMigrationFinish(ev);
             case GOSSIP_EVENT -> handleGossip(ev);
@@ -140,7 +141,7 @@ public class FogNodeController extends FogDevice {
             }
         }
         boolean feasible = target != null && bestScore > 0;
-        double cost = feasible ? computeBidCost(target, container.getProfile()) : Double.MAX_VALUE;
+        double cost = feasible ? computeBidCost(container.getProfile()) : Double.MAX_VALUE;
         MetricsRegistry.collector().recordBid(container.getContainerId(), getId(), getName(), bestScore, cost, feasible, CloudSim.clock());
         send(request.getOriginId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.BID_RESPONSE,
                 new BidResponse(getId(), container.getContainerId(), feasible, bestScore, cost));
@@ -156,7 +157,11 @@ public class FogNodeController extends FogDevice {
         if (!bidManager.isComplete(containerId)) {
             return;
         }
-        Optional<BidResponse> winner = bidManager.pickWinner(containerId);
+        List<BidResponse> responses = bidManager.getResponses(containerId);
+        Optional<BidResponse> winner = responses.stream()
+                .filter(BidResponse::isFeasible)
+                .min(Comparator.<BidResponse>comparingDouble(this::evaluatedCost)
+                        .thenComparing(Comparator.comparingDouble(BidResponse::getScore).reversed()));
         ContainerModule container = bidManager.getContainer(containerId);
         if (container == null) {
             bidManager.clear(containerId);
@@ -177,6 +182,8 @@ public class FogNodeController extends FogDevice {
             send(cloudId, CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_START,
                     new MigrationTransfer(container, getId(), sourceHost(container), MetricsCollector.MigrationKind.CLOUD, effectiveBandwidth(MetricsCollector.MigrationKind.CLOUD), linkLatency(MetricsCollector.MigrationKind.CLOUD), container.getMigrationTrigger()));
             MetricsRegistry.collector().markBidWinner(containerId, cloudId);
+        } else {
+            enqueuePending(container);
         }
         bidManager.clear(containerId);
         activeTransfers++;
@@ -260,6 +267,7 @@ public class FogNodeController extends FogDevice {
                 MetricsRegistry.collector().recordLoad(fogName, now, state.getCpuLoad(), state.getMemLoad(), state.getBwLoad(), stale);
             }
         }
+        retryPendingMigrations();
     }
 
     private void placeNewContainer(ContainerModule container) {
@@ -312,36 +320,40 @@ public class FogNodeController extends FogDevice {
                             container.getMigrationStart(), finish, 0, container.getProfile().getContainerSizeMb(), true, trigger));
             return;
         }
-
-        if (mode == 2 && schedulerId >= 0) {
-            MetricsRegistry.collector().recordDecisionLatency(container.getContainerId(), CloudSim.clock(), CloudSim.clock(), true);
-            send(schedulerId, CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_REQUEST,
-                    new MigrationRequest(container, getId()));
-            return;
-        }
-        ScoringUtil.Weights weights = ScoringUtil.computeWeights(container, CloudSim.clock());
-        double stalenessSeconds = config.getGossip().getIntervalSeconds() * config.getGossip().getStalenessThresholdIntervals();
         List<ScoredNode> candidates = new ArrayList<>();
-        double now = CloudSim.clock();
-        for (Map.Entry<Integer, GossipStateEntry> entry : stateTable.getEntries().entrySet()) {
-            if (entry.getValue().isStale(now, stalenessSeconds)) {
-                continue;
-            }
-            double score = weights.alpha() * (1 - entry.getValue().getCpuLoad())
-                    + weights.beta() * (1 - entry.getValue().getMemLoad())
-                    + weights.gamma() * (1 - entry.getValue().getBwLoad());
-            if (score >= config.getBidding().getSuitabilityThreshold()) {
+        if (config.getGossip().isEnabled()) {
+            ScoringUtil.Weights weights = ScoringUtil.computeWeights(container, CloudSim.clock());
+            double stalenessSeconds = config.getGossip().getIntervalSeconds() * config.getGossip().getStalenessThresholdIntervals();
+            double now = CloudSim.clock();
+            for (Map.Entry<Integer, GossipStateEntry> entry : stateTable.getEntries().entrySet()) {
+                if (entry.getKey() == getId()) {
+                    continue;
+                }
+                if (entry.getValue().isStale(now, stalenessSeconds)) {
+                    continue;
+                }
+                double score = weights.alpha() * (1 - entry.getValue().getCpuLoad())
+                        + weights.beta() * (1 - entry.getValue().getMemLoad())
+                        + weights.gamma() * (1 - entry.getValue().getBwLoad());
                 candidates.add(new ScoredNode(entry.getKey(), score));
             }
-        }
-        // If gossip table is empty or stale, fall back to neighbors so we still solicit fog bids before cloud.
-        if (candidates.isEmpty() && !neighborIds.isEmpty()) {
-            for (Integer neighborId : neighborIds) {
-                candidates.add(new ScoredNode(neighborId, 0.5)); // neutral score; final choice still by bid cost
+            // Fallback to neighbors so we still solicit fog bids before cloud.
+            if (candidates.isEmpty() && !neighborIds.isEmpty()) {
+                for (Integer neighborId : neighborIds) {
+                    if (neighborId != getId()) {
+                        candidates.add(new ScoredNode(neighborId, 0.5)); // neutral score; final choice still by bid cost
+                    }
+                }
+            }
+        } else {
+            for (Integer fogId : allFogIds) {
+                if (fogId != getId()) {
+                    candidates.add(new ScoredNode(fogId, 0.5));
+                }
             }
         }
         candidates.sort(Comparator.comparingDouble(ScoredNode::score).reversed());
-        int limit = Math.min(config.getBidding().getTopK(), candidates.size());
+        int limit = Math.min(3, candidates.size());
         Set<Integer> bidderIds = candidates.stream().limit(limit).map(ScoredNode::nodeId).collect(Collectors.toSet());
         if (cloudId >= 0) {
             bidderIds.add(cloudId);
@@ -354,6 +366,7 @@ public class FogNodeController extends FogDevice {
                         new MigrationTransfer(container, getId(), sourceHost(container), MetricsCollector.MigrationKind.CLOUD, effectiveBandwidth(MetricsCollector.MigrationKind.CLOUD), linkLatency(MetricsCollector.MigrationKind.CLOUD), trigger));
                 activeTransfers++;
             }
+            enqueuePending(container);
             return;
         }
         bidManager.startBid(container, bidderIds);
@@ -361,38 +374,6 @@ public class FogNodeController extends FogDevice {
         for (Integer bidderId : bidderIds) {
             send(bidderId, CloudSim.getMinTimeBetweenEvents(), CollabSimTags.BID_REQUEST, request);
         }
-        // Timeout fallback
-        send(getId(), config.getBidding().getResponseTimeoutSeconds(), CollabSimTags.BID_TIMEOUT, container.getContainerId());
-    }
-
-    private void handleBidTimeout(SimEvent ev) {
-        if (!(ev.getData() instanceof String containerId)) {
-            return;
-        }
-        if (!bidManager.hasPending(containerId)) {
-            return;
-        }
-        Optional<BidResponse> winner = bidManager.pickWinner(containerId);
-        ContainerModule container = bidManager.getContainer(containerId);
-        if (container == null) {
-            bidManager.clear(containerId);
-            return;
-        }
-        if (winner.isPresent()) {
-            BidResponse w = winner.get();
-            MetricsCollector.MigrationKind kind = w.getBidderId() == cloudId ? MetricsCollector.MigrationKind.CLOUD : MetricsCollector.MigrationKind.INTER_FOG;
-            container.recordLastBid(w.getBidderId(), w.getCost());
-            send(w.getBidderId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_START,
-                    new MigrationTransfer(container, getId(), sourceHost(container), kind, effectiveBandwidth(kind), linkLatency(kind), container.getMigrationTrigger()));
-            bidManager.recordWinner(containerId, w);
-            MetricsRegistry.collector().recordDecisionLatency(container.getContainerId(), container.getMigrationStart(), CloudSim.clock(), mode == 2);
-        } else if (cloudId >= 0) {
-            container.recordLastBid(cloudId, 0.0);
-            send(cloudId, CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_START,
-                    new MigrationTransfer(container, getId(), sourceHost(container), MetricsCollector.MigrationKind.CLOUD, effectiveBandwidth(MetricsCollector.MigrationKind.CLOUD), linkLatency(MetricsCollector.MigrationKind.CLOUD), container.getMigrationTrigger()));
-        }
-        bidManager.clear(containerId);
-        activeTransfers++;
     }
 
     private void scheduleCompletion(FogServer host, ContainerModule container) {
@@ -413,18 +394,30 @@ public class FogNodeController extends FogDevice {
         return Math.max(CloudSim.getMinTimeBetweenEvents(), seconds);
     }
 
-    private double computeBidCost(FogServer target, ContainerProfile profile) {
+    private double computeBidCost(ContainerProfile profile) {
+        double totalCpu = servers.stream().mapToDouble(s -> s.getCapacity().getCpuMips() * s.getCpuFactor()).sum();
+        double totalRam = servers.stream().mapToDouble(s -> s.getCapacity().getRamMb()).sum();
+        double totalBw = servers.stream().mapToDouble(s -> s.getCapacity().getBandwidth() * s.getBwFactor()).sum();
+        double usedCpu = servers.stream().mapToDouble(FogServer::getUsedCpu).sum();
+        double usedRam = servers.stream().mapToDouble(FogServer::getUsedRam).sum();
+        double usedBw = servers.stream().mapToDouble(FogServer::getUsedBw).sum();
+
         double cres = profile.getCpuMips() * config.getBidding().getCpuUnitCost()
                 + profile.getRamMb() * config.getBidding().getMemUnitCost()
                 + profile.getBandwidth() * config.getBidding().getBwUnitCost();
-        double lCpu = target.getCpuLoad();
+        double lCpu = totalCpu > 0 ? usedCpu / totalCpu : 1.0;
         double pfail = lCpu * 0.5;
         double crisk = pfail * config.getBidding().getFailureWeight();
-        double linkBw = Math.max(1, Math.min(target.getCapacity().getBandwidth(), capacity.getUplinkBandwidth()));
+        double linkBw = Math.max(1, effectiveBandwidth(MetricsCollector.MigrationKind.INTER_FOG));
         double ctransfer = profile.getContainerSizeMb() / linkBw;
         double cmig = ctransfer + config.getBidding().getMigrationRestoreFactor() * profile.getContainerSizeMb();
         double csla = slaHistory.getOrDefault(getId(), 0.0) * config.getBidding().getHistoricalPenaltyWeight();
-        return cres + crisk + cmig + csla;
+        return cres + crisk + cmig;
+    }
+
+    private double evaluatedCost(BidResponse response) {
+        double csla = slaHistory.getOrDefault(response.getBidderId(), 0.0) * config.getBidding().getHistoricalPenaltyWeight();
+        return response.getCost() + csla;
     }
 
     private FogServer findServer(String name) {
@@ -438,6 +431,10 @@ public class FogNodeController extends FogDevice {
 
     public void setNeighborIds(List<Integer> neighborIds) {
         this.neighborIds = neighborIds;
+    }
+
+    public void setAllFogIds(List<Integer> allFogIds) {
+        this.allFogIds = allFogIds;
     }
 
     public List<Integer> getNeighborIds() {
@@ -546,5 +543,25 @@ public class FogNodeController extends FogDevice {
 
     private String sourceHost(ContainerModule container) {
         return container.getHostName() != null ? container.getHostName() : getName();
+    }
+
+    private void enqueuePending(ContainerModule container) {
+        boolean exists = pendingMigrations.stream().anyMatch(c -> c.getContainerId().equals(container.getContainerId()));
+        if (!exists) {
+            pendingMigrations.add(container);
+        }
+    }
+
+    private void retryPendingMigrations() {
+        if (pendingMigrations.isEmpty()) {
+            return;
+        }
+        int attempts = pendingMigrations.size();
+        for (int i = 0; i < attempts; i++) {
+            ContainerModule container = pendingMigrations.poll();
+            if (container != null) {
+                migrateContainer(container, container.getMigrationTrigger().isEmpty() ? "queued_retry" : container.getMigrationTrigger());
+            }
+        }
     }
 }

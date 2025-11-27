@@ -48,14 +48,17 @@ public class CentralCloudScheduler extends SimEntity {
         double bestScore = -1;
         for (FogNodeController controller : controllers) {
             for (FogServer server : controller.getServers()) {
-                double score = server.residualScore(container.getProfile());
+                if (!server.canHost(container.getProfile())) {
+                    continue;
+                }
+                double score = server.getAvailableCpu();
                 if (score > bestScore) {
                     bestScore = score;
                     bestController = controller;
                 }
             }
         }
-        if (bestController != null && bestScore > 0) {
+        if (bestController != null) {
             container.recordLastBid(bestController.getId(), 0.0);
             send(bestController.getId(), 0, CollabSimTags.MIGRATION_START,
                     new MigrationTransfer(container, request.getOriginId(), sourceName(container, request.getOriginId()), MetricsCollector.MigrationKind.INTER_FOG,

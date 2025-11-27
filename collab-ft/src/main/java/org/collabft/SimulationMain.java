@@ -58,7 +58,7 @@ public class SimulationMain {
                 scaled.setDownlinkBandwidth(capacity.getDownlinkBandwidth());
                 scaled.setUplinkBandwidth(capacity.getUplinkBandwidth());
                 scaled.setRatePerMips(capacity.getRatePerMips());
-                FogServer server = new FogServer(nodeConfig.getName() + "-server-" + i, scaled, nodeConfig.getConcurrencyLimit());
+                FogServer server = new FogServer(nodeConfig.getName() + "-server-" + i, scaled);
                 servers.add(server);
                 allServers.add(server);
             }
@@ -73,6 +73,7 @@ public class SimulationMain {
             FogNodeController current = controllers.get(i);
             FogNodeController next = controllers.get((i + 1) % controllers.size());
             current.setNeighborIds(List.of(next.getId()));
+            current.setAllFogIds(controllers.stream().map(FogNodeController::getId).toList());
         }
 
         // Optional centralized scheduler
@@ -97,14 +98,15 @@ public class SimulationMain {
             }
         }
 
-        if (config.getSimulation().getMode() == 1) {
+        if (config.getSimulation().getMode() == 1 && config.getGossip().isEnabled()) {
             double interval = config.getGossip().getIntervalSeconds();
             new GossipAgent("gossip-agent", controllers, interval);
         }
 
         new FaultInjector("fault-injector", controllers, config.getFault().getMeanTimeBetweenFailureSeconds(),
                 config.getFault().getRecoverySeconds(), config.getFault().getPredictionLeadSeconds(), config.getSimulation().getSeed() + 42,
-                config.getFault().getCpuFailureProb(), config.getFault().getBandwidthDegradationProb(), config.getFault().getServerCrashProb());
+                config.getFault().getCpuFailureProb(), config.getFault().getBandwidthDegradationProb(), config.getFault().getServerCrashProb(),
+                config.getFault().getStartDelaySeconds());
 
         try {
             TopologyExporter.export(Path.of("exports"), cloud, controllers, edgesByController, config.getNetwork());

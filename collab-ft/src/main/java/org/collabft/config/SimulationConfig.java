@@ -114,8 +114,17 @@ public class SimulationConfig {
     }
 
     public static class GossipConfig {
+        private boolean enabled = true;
         private double intervalSeconds = 60;
         private int stalenessThresholdIntervals = 3;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
 
         public double getIntervalSeconds() {
             return intervalSeconds;
@@ -141,6 +150,7 @@ public class SimulationConfig {
         private double cpuFailureProb = 0.33;
         private double bandwidthDegradationProb = 0.34;
         private double serverCrashProb = 0.33;
+        private double startDelaySeconds = 0;
 
         public double getPredictionLeadSeconds() {
             return predictionLeadSeconds;
@@ -188,6 +198,14 @@ public class SimulationConfig {
 
         public void setServerCrashProb(double serverCrashProb) {
             this.serverCrashProb = serverCrashProb;
+        }
+
+        public double getStartDelaySeconds() {
+            return startDelaySeconds;
+        }
+
+        public void setStartDelaySeconds(double startDelaySeconds) {
+            this.startDelaySeconds = startDelaySeconds;
         }
     }
 
@@ -393,7 +411,6 @@ public class SimulationConfig {
         private String name = "fog-node";
         private int servers = 3;
         private ResourceCapacity serverCapacity = new ResourceCapacity();
-        private int concurrencyLimit = Integer.MAX_VALUE;
         private double capacityMultiplier = 1.0;
 
         public String getName() {
@@ -418,14 +435,6 @@ public class SimulationConfig {
 
         public void setServerCapacity(ResourceCapacity serverCapacity) {
             this.serverCapacity = serverCapacity;
-        }
-
-        public int getConcurrencyLimit() {
-            return concurrencyLimit;
-        }
-
-        public void setConcurrencyLimit(int concurrencyLimit) {
-            this.concurrencyLimit = concurrencyLimit;
         }
 
         public double getCapacityMultiplier() {
