@@ -14,6 +14,7 @@ public class SimulationConfig {
     private GossipConfig gossip = new GossipConfig();
     private FaultConfig fault = new FaultConfig();
     private BiddingConfig bidding = new BiddingConfig();
+    private TrustConfig trust = new TrustConfig();
     private SlaConfig sla = new SlaConfig();
     private TaskConfig task = new TaskConfig();
     private Topology topology = new Topology();
@@ -49,6 +50,14 @@ public class SimulationConfig {
 
     public void setBidding(BiddingConfig bidding) {
         this.bidding = bidding;
+    }
+
+    public TrustConfig getTrust() {
+        return trust;
+    }
+
+    public void setTrust(TrustConfig trust) {
+        this.trust = trust;
     }
 
     public TaskConfig getTask() {
@@ -210,60 +219,33 @@ public class SimulationConfig {
     }
 
     public static class BiddingConfig {
-        private double cpuUnitCost = 1.0;
-        private double memUnitCost = 0.5;
-        private double bwUnitCost = 0.2;
-        private double failureWeight = 5.0;
-        private double migrationRestoreFactor = 0.1;
-        private double historicalPenaltyWeight = 1.0;
+        private double pauseSeconds = 1.0;
+        private double resumeSeconds = 1.0;
+        private double kResourceImpact = 0.5;
         private int maxFogBidders = 3;
 
-        public double getCpuUnitCost() {
-            return cpuUnitCost;
+        public double getPauseSeconds() {
+            return pauseSeconds;
         }
 
-        public void setCpuUnitCost(double cpuUnitCost) {
-            this.cpuUnitCost = cpuUnitCost;
+        public void setPauseSeconds(double pauseSeconds) {
+            this.pauseSeconds = pauseSeconds;
         }
 
-        public double getMemUnitCost() {
-            return memUnitCost;
+        public double getResumeSeconds() {
+            return resumeSeconds;
         }
 
-        public void setMemUnitCost(double memUnitCost) {
-            this.memUnitCost = memUnitCost;
+        public void setResumeSeconds(double resumeSeconds) {
+            this.resumeSeconds = resumeSeconds;
         }
 
-        public double getBwUnitCost() {
-            return bwUnitCost;
+        public double getKResourceImpact() {
+            return kResourceImpact;
         }
 
-        public void setBwUnitCost(double bwUnitCost) {
-            this.bwUnitCost = bwUnitCost;
-        }
-
-        public double getFailureWeight() {
-            return failureWeight;
-        }
-
-        public void setFailureWeight(double failureWeight) {
-            this.failureWeight = failureWeight;
-        }
-
-        public double getMigrationRestoreFactor() {
-            return migrationRestoreFactor;
-        }
-
-        public void setMigrationRestoreFactor(double migrationRestoreFactor) {
-            this.migrationRestoreFactor = migrationRestoreFactor;
-        }
-
-        public double getHistoricalPenaltyWeight() {
-            return historicalPenaltyWeight;
-        }
-
-        public void setHistoricalPenaltyWeight(double historicalPenaltyWeight) {
-            this.historicalPenaltyWeight = historicalPenaltyWeight;
+        public void setKResourceImpact(double kResourceImpact) {
+            this.kResourceImpact = kResourceImpact;
         }
 
         public int getMaxFogBidders() {
@@ -272,6 +254,63 @@ public class SimulationConfig {
 
         public void setMaxFogBidders(int maxFogBidders) {
             this.maxFogBidders = maxFogBidders;
+        }
+    }
+
+    public static class TrustConfig {
+        private boolean enableTrust = false;
+        private double trustDecayFactor = 0.5;
+        private double trustRecoveryFactor = 0.05;
+        private double trustThreshold = 0.5;
+        private double tauBw = 0.2;
+        private double tauMig = 5.0;
+
+        public boolean isEnableTrust() {
+            return enableTrust;
+        }
+
+        public void setEnableTrust(boolean enableTrust) {
+            this.enableTrust = enableTrust;
+        }
+
+        public double getTrustDecayFactor() {
+            return trustDecayFactor;
+        }
+
+        public void setTrustDecayFactor(double trustDecayFactor) {
+            this.trustDecayFactor = trustDecayFactor;
+        }
+
+        public double getTrustRecoveryFactor() {
+            return trustRecoveryFactor;
+        }
+
+        public void setTrustRecoveryFactor(double trustRecoveryFactor) {
+            this.trustRecoveryFactor = trustRecoveryFactor;
+        }
+
+        public double getTrustThreshold() {
+            return trustThreshold;
+        }
+
+        public void setTrustThreshold(double trustThreshold) {
+            this.trustThreshold = trustThreshold;
+        }
+
+        public double getTauBw() {
+            return tauBw;
+        }
+
+        public void setTauBw(double tauBw) {
+            this.tauBw = tauBw;
+        }
+
+        public double getTauMig() {
+            return tauMig;
+        }
+
+        public void setTauMig(double tauMig) {
+            this.tauMig = tauMig;
         }
     }
 

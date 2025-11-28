@@ -30,7 +30,7 @@ Modifications to iFogSim2 core files are allowed when required.
 * Hosts centralized scheduler in *Mode 2*.
 * Maintains global view of fog state in centralized mode.
 * Evaluates target placement for containers when cloud scheduling is enabled.
-* Tracks token balances and SLA penalties for economic evaluation.
+* Tracks token balances and payments for economic evaluation.
 
 ---
 
@@ -150,8 +150,7 @@ Modifications to iFogSim2 core files are allowed when required.
 **Responsibilities:**
 
 * Maintains token wallet for each fog node.
-* Stores and updates Csla values.
-* Performs payment settlement.
+* Performs payment settlement and logging.
 * Generates logs for evaluation.
 
 ---

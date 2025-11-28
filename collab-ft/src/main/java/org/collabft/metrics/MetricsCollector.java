@@ -26,6 +26,7 @@ public class MetricsCollector {
     private final List<ResourceRecord> resources = new ArrayList<>();
     private final List<NetworkRecord> network = new ArrayList<>();
     private final List<BidRecord> bids = new ArrayList<>();
+    private final List<SettlementRecord> settlements = new ArrayList<>();
     private final EconomicRecord economic = new EconomicRecord();
     private final Map<String, DecisionLatency> decisionLatency = new HashMap<>();
     private double simStart = 0;
@@ -95,12 +96,9 @@ public class MetricsCollector {
     }
 
     /** Record a bid response for debugging selection behavior. */
-    public void recordBid(String containerId, int bidderId, String bidderName, double score, double cost, boolean feasible, double time) {
-        recordBid(containerId, bidderId, bidderName, score, cost, feasible, false, time);
-    }
-
-    public void recordBid(String containerId, int bidderId, String bidderName, double score, double cost, boolean feasible, boolean winner, double time) {
-        bids.add(new BidRecord(containerId, bidderId, bidderName, score, cost, feasible, winner, time));
+    public void recordBid(String containerId, int bidderId, String bidderName, double claimedBw, double claimedMigTime,
+                          double bidValue, double effectiveBid, boolean feasible, boolean winner, double trustBefore, double time) {
+        bids.add(new BidRecord(containerId, bidderId, bidderName, claimedBw, claimedMigTime, bidValue, effectiveBid, feasible, winner, trustBefore, time));
     }
 
     /** Mark the winner bid for a container (updates any existing bid rows for that bidder). */
@@ -108,9 +106,14 @@ public class MetricsCollector {
         for (int i = 0; i < bids.size(); i++) {
             BidRecord b = bids.get(i);
             if (b.containerId().equals(containerId) && b.bidderId() == bidderId) {
-                bids.set(i, new BidRecord(b.containerId(), b.bidderId(), b.bidderName(), b.score(), b.cost(), b.feasible(), true, b.time()));
+                bids.set(i, new BidRecord(b.containerId(), b.bidderId(), b.bidderName(), b.claimedBw(), b.claimedMigTime(), b.bidValue(), b.effectiveBid(), b.feasible(), true, b.trustBefore(), b.time()));
             }
         }
+    }
+
+    /** Record settlement details including honesty/trust updates and payment. */
+    public void recordSettlement(SettlementRecord record) {
+        settlements.add(record);
     }
 
     public List<MigrationRecord> getMigrations() {
@@ -161,6 +164,10 @@ public class MetricsCollector {
         return bids;
     }
 
+    public List<SettlementRecord> getSettlements() {
+        return settlements;
+    }
+
     public Map<String, DecisionLatency> getDecisionLatency() {
         return decisionLatency;
     }
@@ -196,7 +203,8 @@ public class MetricsCollector {
         Files.writeString(outDir.resolve("network.csv"), JsonUtil.toCsv(network, "time,kind,from,to,bytes"));
         Files.writeString(outDir.resolve("load.csv"), JsonUtil.toCsv(load, "time,fog,cpuLoad,memLoad,bwLoad,stale"));
         Files.writeString(outDir.resolve("resources.csv"), JsonUtil.toCsv(resources, "time,fog,server,containers,cpuLoad,memLoad,bwLoad"));
-        Files.writeString(outDir.resolve("bids.csv"), JsonUtil.toCsv(bids, "time,containerId,bidderId,bidderName,score,cost,feasible,winner"));
+        Files.writeString(outDir.resolve("bids.csv"), JsonUtil.toCsv(bids, "time,containerId,bidderId,bidderName,claimedBw,claimedMigTime,bidValue,effectiveBid,feasible,winner,trustBefore"));
+        Files.writeString(outDir.resolve("payment_log.csv"), JsonUtil.toCsv(settlements, "time,containerId,bidderId,bidderName,claimedBw,claimedMigTime,actualBw,actualMigTime,errBw,errMig,trustBefore,trustAfter,bidValue,effectiveBid,payment,slaMet"));
     }
 
     public enum MigrationKind { INTRA_FOG, INTER_FOG, CLOUD }
@@ -233,7 +241,13 @@ public class MetricsCollector {
 
     public record NetworkRecord(String kind, String from, String to, double bytes, double time) { }
 
-    public record BidRecord(String containerId, int bidderId, String bidderName, double score, double cost, boolean feasible, boolean winner, double time) { }
+    public record BidRecord(String containerId, int bidderId, String bidderName, double claimedBw, double claimedMigTime,
+                            double bidValue, double effectiveBid, boolean feasible, boolean winner, double trustBefore, double time) { }
+
+    public record SettlementRecord(String containerId, int bidderId, String bidderName, double claimedBw, double claimedMigTime,
+                                   double actualBw, double actualMigTime, double errBw, double errMig,
+                                   double trustBefore, double trustAfter, double bidValue, double effectiveBid,
+                                   double payment, boolean slaMet, double time) { }
 
     /** Minimal JSON serializer for structured metrics lines. */
     public static final class JsonUtil {
@@ -308,7 +322,14 @@ public class MetricsCollector {
                 } else if (row instanceof ResourceRecord r) {
                     sb.append(r.time()).append(',').append(r.fogName()).append(',').append(r.serverName()).append(',').append(r.containers()).append(',').append(r.cpuLoad()).append(',').append(r.memLoad()).append(',').append(r.bwLoad()).append("\n");
                 } else if (row instanceof BidRecord b) {
-                    sb.append(b.time()).append(',').append(b.containerId()).append(',').append(b.bidderId()).append(',').append(b.bidderName()).append(',').append(b.score()).append(',').append(b.cost()).append(',').append(b.feasible()).append(',').append(b.winner()).append("\n");
+                    sb.append(b.time()).append(',').append(b.containerId()).append(',').append(b.bidderId()).append(',').append(b.bidderName()).append(',')
+                            .append(b.claimedBw()).append(',').append(b.claimedMigTime()).append(',').append(b.bidValue()).append(',')
+                            .append(b.effectiveBid()).append(',').append(b.feasible()).append(',').append(b.winner()).append(',').append(b.trustBefore()).append("\n");
+                } else if (row instanceof SettlementRecord s) {
+                    sb.append(s.time()).append(',').append(s.containerId()).append(',').append(s.bidderId()).append(',').append(s.bidderName()).append(',')
+                            .append(s.claimedBw()).append(',').append(s.claimedMigTime()).append(',').append(s.actualBw()).append(',').append(s.actualMigTime()).append(',')
+                            .append(s.errBw()).append(',').append(s.errMig()).append(',').append(s.trustBefore()).append(',').append(s.trustAfter()).append(',')
+                            .append(s.bidValue()).append(',').append(s.effectiveBid()).append(',').append(s.payment()).append(',').append(s.slaMet()).append("\n");
                 }
             }
             return sb.toString();

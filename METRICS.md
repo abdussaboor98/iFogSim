@@ -174,9 +174,9 @@ End‑to‑end latency including:
 * migration
 * network delay
 
-### **6.3 SLA Penalty vs Reward Distribution**
+### **6.3 SLA Outcome Distribution**
 
-* For economic evaluation.
+* Ratio of tasks that met deadlines vs missed.
 
 ### **6.4 Deadline Tightness Impact**
 
@@ -192,9 +192,9 @@ These metrics show cost distribution and performance of the economic layer.
 
 * Tokens exchanged between fog nodes.
 
-### **7.2 Csla Evolution per Fog Node**
+### **7.2 Trust Score Evolution**
 
-* Tracks reliability profile over time.
+* Tracks bidder honesty and trust recovery/decay over time.
 
 ### **7.3 Profit or Utility per Node**
 
@@ -207,9 +207,9 @@ These metrics show cost distribution and performance of the economic layer.
 
 ### **7.5 Cost Breakdown per Migration**
 
-* Cres
-* Crisk
-* Cmig
+* migrationTime (claimed vs actual)
+* resourceImpact = delta_cpu + delta_mem + delta_bw
+* bidValue and effectiveBid (trust-adjusted)
 
 ---
 

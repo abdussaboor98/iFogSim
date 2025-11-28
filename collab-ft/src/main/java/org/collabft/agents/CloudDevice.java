@@ -71,14 +71,14 @@ public class CloudDevice extends FogDevice {
             case MIGRATION_REQUEST:
                 if (ev.getData() instanceof MigrationRequest request) {
                     BidResponse bid = buildBid(request.getContainer());
-                    MetricsRegistry.collector().recordBid(request.getContainer().getContainerId(), getId(), getName(), bid.getScore(), bid.getCost(), bid.isFeasible(), CloudSim.clock());
+                    MetricsRegistry.collector().recordBid(request.getContainer().getContainerId(), getId(), getName(), bid.getClaimedBandwidthMbps(), bid.getClaimedMigrationTimeSeconds(), bid.getBidValue(), bid.getBidValue(), bid.isFeasible(), false, 1.0, CloudSim.clock());
                     send(request.getOriginId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.BID_RESPONSE, bid);
                 }
                 break;
             case BID_REQUEST:
                 if (ev.getData() instanceof MigrationRequest request) {
                     BidResponse bid = buildBid(request.getContainer());
-                    MetricsRegistry.collector().recordBid(request.getContainer().getContainerId(), getId(), getName(), bid.getScore(), bid.getCost(), bid.isFeasible(), CloudSim.clock());
+                    MetricsRegistry.collector().recordBid(request.getContainer().getContainerId(), getId(), getName(), bid.getClaimedBandwidthMbps(), bid.getClaimedMigrationTimeSeconds(), bid.getBidValue(), bid.getBidValue(), bid.isFeasible(), false, 1.0, CloudSim.clock());
                     send(request.getOriginId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.BID_RESPONSE, bid);
                 }
                 break;
@@ -122,19 +122,19 @@ public class CloudDevice extends FogDevice {
 
     private BidResponse buildBid(ContainerModule container) {
         ContainerProfile profile = container.getProfile();
-        double cres = profile.getDemandMips() * biddingConfig.getCpuUnitCost()
-                + profile.getRamMb() * biddingConfig.getMemUnitCost()
-                + profile.getBandwidth() * biddingConfig.getBwUnitCost();
-        double crisk = 0; // assume stable cloud capacity
-        double linkBw = Math.max(1, Math.min(capacity.getUplinkBandwidth(), network.getFogCloudBandwidthMbps()));
-        double transferSeconds = profile.getContainerSizeMb() / linkBw;
-        double latencySeconds = network.getFogCloudLatencyMs() / 1000.0;
-        double cmig = transferSeconds + biddingConfig.getMigrationRestoreFactor() * profile.getContainerSizeMb();
-        double latencyPenaltySeconds = transferSeconds + latencySeconds;
-        // Apply a strong multiplier so fog-cloud latency meaningfully increases the bid cost.
-        double latencyPenalty = latencyPenaltySeconds * biddingConfig.getFailureWeight();// * 100;
-        double cost = cres + crisk + cmig + latencyPenalty;
-        return new BidResponse(getId(), container.getContainerId(), true, 0.1, cost);
+        double claimedBw = Math.max(1e-6, Math.min(capacity.getUplinkBandwidth(), network.getFogCloudBandwidthMbps()));
+        double migrationTime = biddingConfig.getPauseSeconds() + profile.getContainerSizeMb() / claimedBw + biddingConfig.getResumeSeconds();
+        double projectedCpu = (usedCpu + profile.getDemandMips()) / Math.max(1e-6, capacity.getCpuMips());
+        double projectedMem = (usedRam + profile.getRamMb()) / Math.max(1e-6, capacity.getRamMb());
+        double projectedBw = (usedBw + profile.getBandwidth()) / Math.max(1e-6, capacity.getBandwidth());
+        double timeToDeadline = Math.max(0, container.getDeadlineSeconds() - (CloudSim.clock() - container.getArrivalTime()));
+        boolean feasible = projectedCpu <= 1.0 && projectedMem <= 1.0 && projectedBw <= 1.0 && migrationTime < timeToDeadline;
+        double linkCapacity = network.getFogCloudBandwidthMbps();
+        double resourceImpact = profile.getDemandMips() / Math.max(1e-6, capacity.getCpuMips())
+                + profile.getRamMb() / Math.max(1e-6, capacity.getRamMb())
+                + profile.getBandwidth() / Math.max(1e-6, linkCapacity);
+        double bidValue = migrationTime + biddingConfig.getKResourceImpact() * resourceImpact;
+        return new BidResponse(getId(), container.getContainerId(), feasible, bidValue, claimedBw, migrationTime);
     }
 
     private boolean canHost(ContainerProfile profile) {
@@ -144,15 +144,16 @@ public class CloudDevice extends FogDevice {
     private void startTransfer(MigrationTransfer transfer) {
         ContainerModule module = transfer.getContainer();
         addContainer(module);
+        double transferStart = CloudSim.clock();
         double transferSeconds = transfer.getLinkBandwidthMbps() > 0
                 ? module.getProfile().getContainerSizeMb() / transfer.getLinkBandwidthMbps()
                 : 0;
-        double finish = CloudSim.clock() + transferSeconds + transfer.getLatencySeconds();
+        double finish = transferStart + transferSeconds + transfer.getLatencySeconds();
         double execSeconds = computeExecutionSeconds(module);
         double completionAt = finish + execSeconds;
         MetricsRegistry.collector().recordNetwork("migration", transfer.getSourceName(), getName(), module.getProfile().getContainerSizeMb() * 1024 * 1024, CloudSim.clock());
         send(transfer.getOriginId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_FINISH,
-                new MigrationResult(module, transfer.getKind(), transfer.getSourceName(), getName(), module.getMigrationStart(), finish, 0, module.getProfile().getContainerSizeMb(), true, transfer.getTrigger()));
+                new MigrationResult(module, transfer.getKind(), transfer.getSourceName(), getName(), transferStart, finish, 0, module.getProfile().getContainerSizeMb(), true, transfer.getTrigger()));
         module.startRun(finish, sharePerContainer(), execSeconds);
         send(getId(), execSeconds + transferSeconds + transfer.getLatencySeconds(), CollabSimTags.TASK_COMPLETE,
                 new CompletionNotice(module, getName(), finish, completionAt, module.getRunVersion()));

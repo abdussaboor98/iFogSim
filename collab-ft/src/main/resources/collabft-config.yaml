@@ -31,13 +31,19 @@ fault:
 bidding:
   # Maximum number of fog bidders to invite (set 0 for no cap)
   maxFogBidders: 4
-  # Cost model coefficients
-  cpuUnitCost: 1.0
-  memUnitCost: 0.5
-  bwUnitCost: 0.2
-  failureWeight: 5.0
-  migrationRestoreFactor: 0.1
-  historicalPenaltyWeight: 1.0
+  # Pause/resume overhead for migration time
+  pauseSeconds: 1.0
+  resumeSeconds: 1.0
+  # k for bid_value = migrationTime + k * resourceImpact
+  kResourceImpact: 0.5
+
+trust:
+  enableTrust: false
+  trustDecayFactor: 0.5
+  trustRecoveryFactor: 0.05
+  trustThreshold: 0.5
+  tauBw: 0.2
+  tauMig: 5.0
 
 sla:
   epsilon: 0.001

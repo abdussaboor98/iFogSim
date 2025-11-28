@@ -55,8 +55,7 @@ public class BidManager {
     private Optional<BidResponse> selectWinner(PendingBid bid) {
         return bid.responses.stream()
                 .filter(BidResponse::isFeasible)
-                .min(Comparator.<BidResponse>comparingDouble(BidResponse::getCost)
-                        .thenComparing(Comparator.comparingDouble(BidResponse::getScore).reversed()));
+                .min(Comparator.comparingDouble(BidResponse::getBidValue));
     }
 
     public ContainerModule getContainer(String containerId) {

@@ -7,15 +7,17 @@ public class BidResponse {
     private final int bidderId;
     private final String containerId;
     private final boolean feasible;
-    private final double score;
-    private final double cost;
+    private final double bidValue;
+    private final double claimedBandwidthMbps;
+    private final double claimedMigrationTimeSeconds;
 
-    public BidResponse(int bidderId, String containerId, boolean feasible, double score, double cost) {
+    public BidResponse(int bidderId, String containerId, boolean feasible, double bidValue, double claimedBandwidthMbps, double claimedMigrationTimeSeconds) {
         this.bidderId = bidderId;
         this.containerId = containerId;
         this.feasible = feasible;
-        this.score = score;
-        this.cost = cost;
+        this.bidValue = bidValue;
+        this.claimedBandwidthMbps = claimedBandwidthMbps;
+        this.claimedMigrationTimeSeconds = claimedMigrationTimeSeconds;
     }
 
     public int getBidderId() {
@@ -30,11 +32,15 @@ public class BidResponse {
         return feasible;
     }
 
-    public double getScore() {
-        return score;
+    public double getBidValue() {
+        return bidValue;
     }
 
-    public double getCost() {
-        return cost;
+    public double getClaimedBandwidthMbps() {
+        return claimedBandwidthMbps;
+    }
+
+    public double getClaimedMigrationTimeSeconds() {
+        return claimedMigrationTimeSeconds;
     }
 }

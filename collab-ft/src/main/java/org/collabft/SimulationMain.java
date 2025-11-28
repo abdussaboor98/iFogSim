@@ -78,7 +78,7 @@ public class SimulationMain {
 
         // Optional centralized scheduler
         if (config.getSimulation().getMode() == 2) {
-            CentralCloudScheduler scheduler = new CentralCloudScheduler("central-scheduler", controllers, cloud, config.getNetwork());
+            CentralCloudScheduler scheduler = new CentralCloudScheduler("central-scheduler", controllers, cloud, config.getNetwork(), config.getBidding());
             for (FogNodeController controller : controllers) {
                 controller.setSchedulerId(scheduler.getId());
             }
