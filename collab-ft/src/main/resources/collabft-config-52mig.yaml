@@ -42,13 +42,6 @@ trust:
   tauBw: 0.2
   tauMig: 5.0
 
-sla:
-  epsilon: 0.001
-  urgencyK: 0.1
-  resourceWeight: 0.6
-  urgencyWeight: 0.4
-  penaltyEta: 1.0
-
 task:
   # Number of tasks each edge emits (total per edge)
   tasksPerEdge: 8

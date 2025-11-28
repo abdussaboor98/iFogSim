@@ -15,7 +15,6 @@ public class SimulationConfig {
     private FaultConfig fault = new FaultConfig();
     private BiddingConfig bidding = new BiddingConfig();
     private TrustConfig trust = new TrustConfig();
-    private SlaConfig sla = new SlaConfig();
     private TaskConfig task = new TaskConfig();
     private Topology topology = new Topology();
     private Network network = new Network();
@@ -74,14 +73,6 @@ public class SimulationConfig {
 
     public void setTopology(Topology topology) {
         this.topology = topology;
-    }
-
-    public SlaConfig getSla() {
-        return sla;
-    }
-
-    public void setSla(SlaConfig sla) {
-        this.sla = sla;
     }
 
     public Network getNetwork() {
@@ -532,54 +523,6 @@ public class SimulationConfig {
 
         public void setHeterogeneityJitter(double heterogeneityJitter) {
             this.heterogeneityJitter = heterogeneityJitter;
-        }
-    }
-
-    public static class SlaConfig {
-        private double epsilon = 1e-3;
-        private double urgencyK = 0.1;
-        private double resourceWeight = 0.6;
-        private double urgencyWeight = 0.4;
-        private double penaltyEta = 1.0;
-
-        public double getEpsilon() {
-            return epsilon;
-        }
-
-        public void setEpsilon(double epsilon) {
-            this.epsilon = epsilon;
-        }
-
-        public double getUrgencyK() {
-            return urgencyK;
-        }
-
-        public void setUrgencyK(double urgencyK) {
-            this.urgencyK = urgencyK;
-        }
-
-        public double getResourceWeight() {
-            return resourceWeight;
-        }
-
-        public void setResourceWeight(double resourceWeight) {
-            this.resourceWeight = resourceWeight;
-        }
-
-        public double getUrgencyWeight() {
-            return urgencyWeight;
-        }
-
-        public void setUrgencyWeight(double urgencyWeight) {
-            this.urgencyWeight = urgencyWeight;
-        }
-
-        public double getPenaltyEta() {
-            return penaltyEta;
-        }
-
-        public void setPenaltyEta(double penaltyEta) {
-            this.penaltyEta = penaltyEta;
         }
     }
 
