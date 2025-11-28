@@ -102,16 +102,22 @@ public class FogNodeController extends FogDevice {
         }
         FogServer server = notice.getServer();
         if (notice.isPrediction()) {
+            double cpuLoad = server.getCpuLoad();
+            double memLoad = server.getMemLoad();
+            double bwLoad = server.getBwLoad();
+            int runningContainers = server.getContainers().size();
+            MetricsRegistry.collector().recordFaultPrediction(getName(), server.getName(), notice.getType().name().toLowerCase(),
+                    CloudSim.clock(), cpuLoad, memLoad, bwLoad, runningContainers);
             server.markPredictedFailure(notice.getFailureTime());
             // Preemptively migrate containers before failure hits
-        for (ContainerModule container : new ArrayList<>(server.getContainers())) {
-            checkpointAndRemove(server, container);
-            migrateContainer(container, "fault_predicted_" + notice.getType().name().toLowerCase());
+            for (ContainerModule container : new ArrayList<>(server.getContainers())) {
+                checkpointAndRemove(server, container);
+                migrateContainer(container, "fault_predicted_" + notice.getType().name().toLowerCase());
+            }
+            return;
         }
-        return;
-    }
-    server.clearPrediction();
-    server.markFaultActive();
+        server.clearPrediction();
+        server.markFaultActive();
         // Apply actual fault effects
         switch (notice.getType()) {
             case CPU_FAILURE -> server.degradeCpu(0.2); // retain only 20% CPU

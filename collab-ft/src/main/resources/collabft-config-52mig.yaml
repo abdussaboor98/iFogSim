@@ -8,7 +8,7 @@ simulation:
   durationSeconds: 86400
 
 gossip:
-  enabled: false
+  enabled: true
   # Period between gossip rounds (seconds)
   intervalSeconds: 10
   # Entries older than this many intervals are ignored
@@ -16,13 +16,13 @@ gossip:
 
 fault:
   # Prediction horizon Δ before failure occurs
-  predictionLeadSeconds: 60
+  predictionLeadSeconds: 90
   # Mean time between failures (seconds) for Poisson process
-  meanTimeBetweenFailureSeconds: 10
+  meanTimeBetweenFailureSeconds: 15
   # Do not start injecting faults until this offset (seconds)
-  startDelaySeconds: 10
+  startDelaySeconds: 30
   # Time until a failed server recovers (seconds)
-  recoverySeconds: 300
+  recoverySeconds: 240
   # Fault type probabilities (must sum to ~1.0)
   cpuFailureProb: 0.33
   bandwidthDegradationProb: 0.34
@@ -30,9 +30,9 @@ fault:
 
 bidding:
   # Max neighbors (plus cloud) to request bids from
-  topK: 3
+  topK: 5
   # Minimum score S_node required to be eligible
-  suitabilityThreshold: 0.25
+  suitabilityThreshold: 0.1
   # Timeout before abandoning a bidding round (seconds)
   responseTimeoutSeconds: 15
   # Cost model coefficients
@@ -52,9 +52,9 @@ sla:
 
 task:
   # Number of tasks each edge emits (total per edge)
-  tasksPerEdge: 20
+  tasksPerEdge: 8
   # Mean inter-arrival time (seconds) for exponential arrivals
-  meanInterArrivalSeconds: 15
+  meanInterArrivalSeconds: 45
   jitterPercent: 10
   defaultProfile:
     # Container MI demand
@@ -216,7 +216,7 @@ topology:
 
 network:
   # Favor fog-to-fog over fog-to-cloud by making WAN slower
-  interFogLatencyMs: 5
-  interFogBandwidthMbps: 8000
+  interFogLatencyMs: 3
+  interFogBandwidthMbps: 12000
   fogCloudLatencyMs: 40
   fogCloudBandwidthMbps: 3000

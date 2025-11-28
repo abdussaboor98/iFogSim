@@ -17,6 +17,7 @@ import java.util.Map;
 public class MetricsCollector {
     private final List<MigrationRecord> migrations = new ArrayList<>();
     private final List<FaultRecord> faults = new ArrayList<>();
+    private final List<FaultPredictionRecord> faultPredictions = new ArrayList<>();
     private final List<GossipRecord> gossips = new ArrayList<>();
     private final List<SlaRecord> sla = new ArrayList<>();
     private final List<LoadRecord> load = new ArrayList<>();
@@ -38,6 +39,11 @@ public class MetricsCollector {
     /** Record a fault prediction/occurrence. */
     public void recordFault(String serverName, String faultType, double predictTime, double failTime, double recoveryTime, boolean recovered) {
         faults.add(new FaultRecord(serverName, faultType, predictTime, failTime, recoveryTime, recovered));
+    }
+
+    /** Snapshot server state when a fault is predicted. */
+    public void recordFaultPrediction(String fogName, String serverName, String faultType, double predictTime, double cpuLoad, double memLoad, double bwLoad, int containers) {
+        faultPredictions.add(new FaultPredictionRecord(fogName, serverName, faultType, predictTime, cpuLoad, memLoad, bwLoad, containers));
     }
 
     /** Record gossip/control plane overhead. */
@@ -103,6 +109,10 @@ public class MetricsCollector {
         return faults;
     }
 
+    public List<FaultPredictionRecord> getFaultPredictions() {
+        return faultPredictions;
+    }
+
     public List<GossipRecord> getGossips() {
         return gossips;
     }
@@ -156,6 +166,7 @@ public class MetricsCollector {
         Files.createDirectories(outDir);
         Files.writeString(outDir.resolve("migrations.json"), JsonUtil.toJsonLines(migrations));
         Files.writeString(outDir.resolve("faults.json"), JsonUtil.toJsonLines(faults));
+        Files.writeString(outDir.resolve("fault_predictions.json"), JsonUtil.toJsonLines(faultPredictions));
         Files.writeString(outDir.resolve("gossip.json"), JsonUtil.toJsonLines(gossips));
         Files.writeString(outDir.resolve("sla.json"), JsonUtil.toJsonLines(sla));
         Files.writeString(outDir.resolve("economic.json"), JsonUtil.toJsonLines(economic.payments));
@@ -173,6 +184,8 @@ public class MetricsCollector {
                                   boolean success, String reason) { }
 
     public record FaultRecord(String serverName, String faultType, double predictedAt, double failedAt, double recoveryAt, boolean recovered) { }
+
+    public record FaultPredictionRecord(String fogName, String serverName, String faultType, double predictedAt, double cpuLoad, double memLoad, double bwLoad, int containers) { }
 
     public record GossipRecord(String sender, String receiver, double bytes, double timestamp, double cpuLoad, double memLoad, double bwLoad, boolean stale) { }
 
