@@ -108,6 +108,8 @@ public class FogServer extends FogDevice {
 
     public boolean isPredictedToFail() { return predictedFailureAt >= 0 && CloudSim.clock() < predictedFailureAt; }
 
+    public double getPredictedFailureAt() { return predictedFailureAt; }
+
     public boolean isFaulted() { return failed || faultActive || isPredictedToFail(); }
 
     public void clearPrediction() {

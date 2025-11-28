@@ -60,6 +60,9 @@ public final class ConfigLoader {
         if (config.getTopology().getFogNodes() == null || config.getTopology().getFogNodes().isEmpty()) {
             config.getTopology().setFogNodes(defaultFogNodes());
         }
+        if (config.getSla() == null) {
+            config.setSla(new SimulationConfig.SlaConfig());
+        }
         return config;
     }
 }

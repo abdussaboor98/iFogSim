@@ -22,17 +22,24 @@ public class EdgeDevice extends FogDevice {
     private final ContainerProfile baseProfile;
     private final SimulationConfig.TaskConfig taskConfig;
     private final SimulationConfig.EdgeConfig edgeConfig;
+    private final SimulationConfig.BiddingConfig biddingConfig;
+    private final SimulationConfig.Network networkConfig;
+    private final SimulationConfig.SlaConfig slaConfig;
     private final int tasksToSend;
     private final double meanInterArrival;
     private final Random random;
     private int sentCount = 0;
 
-    public EdgeDevice(String name, ResourceCapacity capacity, ContainerProfile profile, SimulationConfig.TaskConfig taskConfig, SimulationConfig.EdgeConfig edgeConfig, long seed) throws Exception {
-        this(name, capacity, profile, taskConfig, edgeConfig, seed,
+    public EdgeDevice(String name, ResourceCapacity capacity, ContainerProfile profile, SimulationConfig.TaskConfig taskConfig,
+                      SimulationConfig.EdgeConfig edgeConfig, SimulationConfig.BiddingConfig biddingConfig,
+                      SimulationConfig.Network networkConfig, SimulationConfig.SlaConfig slaConfig, long seed) throws Exception {
+        this(name, capacity, profile, taskConfig, edgeConfig, biddingConfig, networkConfig, slaConfig, seed,
                 FogDeviceFactory.build(capacity, new FogLinearPowerModel(40, 5)));
     }
 
-    private EdgeDevice(String name, ResourceCapacity capacity, ContainerProfile profile, SimulationConfig.TaskConfig taskConfig, SimulationConfig.EdgeConfig edgeConfig, long seed,
+    private EdgeDevice(String name, ResourceCapacity capacity, ContainerProfile profile, SimulationConfig.TaskConfig taskConfig,
+                       SimulationConfig.EdgeConfig edgeConfig, SimulationConfig.BiddingConfig biddingConfig,
+                       SimulationConfig.Network networkConfig, SimulationConfig.SlaConfig slaConfig, long seed,
                        Components components) throws Exception {
         super(name,
                 components.characteristics(),
@@ -45,6 +52,9 @@ public class EdgeDevice extends FogDevice {
         this.baseProfile = profile;
         this.taskConfig = taskConfig;
         this.edgeConfig = edgeConfig;
+        this.biddingConfig = biddingConfig;
+        this.networkConfig = networkConfig;
+        this.slaConfig = slaConfig;
         this.tasksToSend = taskConfig.getTasksPerEdge();
         this.meanInterArrival = taskConfig.getMeanInterArrivalSeconds();
         this.random = new Random(seed);
@@ -73,10 +83,22 @@ public class EdgeDevice extends FogDevice {
             return;
         }
         ContainerProfile sampled = sampleProfile();
-        double transmissionSeconds = sampled.getContainerSizeMb() / Math.max(1, edgeConfig.getBandwidthMbps());
+        double edgeBwMbPerSec = edgeConfig.getBandwidthMbps() / 8.0;
+        double transmissionSeconds = sampled.getContainerSizeMb() / Math.max(1e-6, edgeBwMbPerSec);
         double latencySeconds = edgeConfig.getLatencyMs() / 1000.0;
         double totalDelay = delay + transmissionSeconds + latencySeconds;
-        send(getParentId(), totalDelay, CollabSimTags.TASK_ARRIVAL_EVENT, new TaskProfile(sampled, CloudSim.clock() + totalDelay));
+        double arrivalTime = CloudSim.clock() + totalDelay;
+        double tExec = sampled.getRuntimeSeconds();
+        double tNet = slaConfig.getNetOverheadRatio() * tExec;
+        double tSlack = slaConfig.getSlackRatio() * tExec;
+        double interFogBwMBps = networkConfig.getInterFogBandwidthMbps() / 8.0;
+        double tMig = biddingConfig.getPauseSeconds()
+                + sampled.getContainerSizeMb() / Math.max(1e-6, interFogBwMBps)
+                + biddingConfig.getResumeSeconds();
+        double deadline = arrivalTime + tExec + tNet + tSlack + tMig;
+        sampled.setDeadlineSeconds(deadline);
+        send(getParentId(), totalDelay, CollabSimTags.TASK_ARRIVAL_EVENT,
+                new TaskProfile(sampled, arrivalTime, deadline, tExec, tNet, tSlack, tMig, getName()));
         sentCount++;
         double nextDelay = applyJitter(exponential(meanInterArrival));
         send(getId(), delay + nextDelay, CollabSimTags.TASK_GENERATE);
@@ -101,8 +123,6 @@ public class EdgeDevice extends FogDevice {
         p.setRamMb((int) sample(taskConfig.getRamRange(), baseProfile.getRamMb()));
         p.setBandwidth(sample(taskConfig.getBandwidthRange(), baseProfile.getBandwidth()));
         p.setContainerSizeMb(sample(taskConfig.getContainerSizeRange(), baseProfile.getContainerSizeMb()));
-        double deadline = runtime * taskConfig.getSlaRuntimeMultiplier();
-        p.setDeadlineSeconds(deadline);
         return p;
     }
 

@@ -98,11 +98,9 @@ public class FogNodeController extends FogDevice {
         if (!(ev.getData() instanceof TaskProfile profile)) {
             return;
         }
-        ContainerModule module = new ContainerModule("container-" + profile.getTaskId(), "collab-app", getId(), profile.getContainerProfile());
+        ContainerModule module = new ContainerModule("container-" + profile.getTaskId(), "collab-app", getId(), profile);
         module.setOwnerFog(getName());
         module.setOwnerId(getId());
-        // Track arrival time for SLA metrics
-        module.setArrivalTime(CloudSim.clock());
         placeNewContainer(module);
     }
 
@@ -155,11 +153,13 @@ public class FogNodeController extends FogDevice {
         double projectedCpu = load.cpuLoad() + profile.getDemandMips() / Math.max(1e-6, cap.cpu());
         double projectedMem = load.memLoad() + profile.getRamMb() / Math.max(1e-6, cap.mem());
         double projectedBw = load.bwLoad() + profile.getBandwidth() / Math.max(1e-6, cap.bw());
-        double timeToDeadline = Math.max(0, container.getDeadlineSeconds() - (CloudSim.clock() - container.getArrivalTime()));
+        double timeToDeadline = Math.max(0, container.getDeadlineSeconds() - CloudSim.clock());
+        double timeToFaultRemaining = timeToNextPredictedFault();
         boolean serverFeasible = servers.stream().anyMatch(s -> s.residualScore(profile) > 0);
         boolean feasible = serverFeasible
                 && projectedCpu <= 1.0 && projectedMem <= 1.0 && projectedBw <= 1.0
-                && migrationTime < Math.min(Double.MAX_VALUE, timeToDeadline);
+                && migrationTime <= timeToDeadline
+                && migrationTime <= timeToFaultRemaining;
         double resourceImpact = resourceImpact(profile, cap, claimedBw);
         double bidValue = migrationTime + config.getBidding().getResourceImpactK() * resourceImpact;
         MetricsRegistry.collector().recordBid(container.getContainerId(), getId(), getName(), claimedBw, migrationTime, bidValue, bidValue, feasible, false, trustManager.current(getId()), CloudSim.clock());
@@ -205,25 +205,28 @@ public class FogNodeController extends FogDevice {
                     new MigrationTransfer(container, getId(), sourceHost(container), kind, linkBw, latency, container.getMigrationTrigger()));
             bidManager.recordWinner(container.getContainerId(), win.response());
             MetricsRegistry.collector().recordDecisionLatency(container.getContainerId(), container.getMigrationStart(), CloudSim.clock(), mode == 2);
+            activeTransfers++;
         } else if (cloudId >= 0) {
             double claimedBw = actualLinkBandwidth(cloudId);
             double claimedMig = computeMigrationTime(container.getProfile().getContainerSizeMb(), claimedBw);
             BidResponse synthetic = new BidResponse(cloudId, container.getContainerId(), true, 0, claimedBw, claimedMig);
             BidEvaluation eval = evaluateBid(container, synthetic);
-            if (eval != null) {
+            if (eval != null && eval.feasible()) {
                 container.recordLastBid(cloudId, eval.bidValue());
                 winnerContexts.put(containerId, new BidContext(eval));
+                double transferStart = CloudSim.clock();
+                transferStarts.put(containerId, transferStart);
+                send(cloudId, CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_START,
+                        new MigrationTransfer(container, getId(), sourceHost(container), MetricsCollector.MigrationKind.CLOUD, actualLinkBandwidth(cloudId), linkLatencyFor(cloudId), container.getMigrationTrigger()));
+                MetricsRegistry.collector().markBidWinner(containerId, cloudId);
+                activeTransfers++;
+            } else {
+                enqueuePending(container);
             }
-            double transferStart = CloudSim.clock();
-            transferStarts.put(containerId, transferStart);
-            send(cloudId, CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_START,
-                    new MigrationTransfer(container, getId(), sourceHost(container), MetricsCollector.MigrationKind.CLOUD, actualLinkBandwidth(cloudId), linkLatencyFor(cloudId), container.getMigrationTrigger()));
-            MetricsRegistry.collector().markBidWinner(containerId, cloudId);
         } else {
             enqueuePending(container);
         }
         bidManager.clear(containerId);
-        activeTransfers++;
     }
 
     private void handleMigrationStart(SimEvent ev) {
@@ -241,9 +244,10 @@ public class FogNodeController extends FogDevice {
             return;
         }
         double effectiveBw = transfer.getLinkBandwidthMbps() / Math.max(1, activeTransfers);
+        double effectiveBwMbPerSec = effectiveBw / 8.0;
         double transferStart = CloudSim.clock();
-        double transferSeconds = effectiveBw > 0
-                ? container.getProfile().getContainerSizeMb() / effectiveBw
+        double transferSeconds = effectiveBwMbPerSec > 0
+                ? container.getProfile().getContainerSizeMb() / effectiveBwMbPerSec
                 : 0;
         double finish = transferStart + transferSeconds + transfer.getLatencySeconds();
         double overheadBw = container.getProfile().getContainerSizeMb();
@@ -276,7 +280,7 @@ public class FogNodeController extends FogDevice {
             double transferStart = start != null ? start : result.getStart();
             double actualTransfer = Math.max(CloudSim.getMinTimeBetweenEvents(), result.getFinish() - transferStart);
             double actualMigTime = config.getBidding().getPauseSeconds() + actualTransfer + config.getBidding().getResumeSeconds();
-            double actualBw = result.getContainer().getProfile().getContainerSizeMb() / Math.max(1e-6, actualTransfer);
+            double actualBw = result.getContainer().getProfile().getContainerSizeMb() / Math.max(1e-6, actualTransfer) * 8.0;
             double claimedBw = context.evaluation.response().getClaimedBandwidthMbps();
             double claimedMig = context.evaluation.response().getClaimedMigrationTimeSeconds();
             double errBw = Math.abs(claimedBw - actualBw);
@@ -479,17 +483,17 @@ public class FogNodeController extends FogDevice {
                 double claimedMig = computeMigrationTime(container.getProfile().getContainerSizeMb(), claimedBw);
                 BidResponse synthetic = new BidResponse(cloudId, container.getContainerId(), true, 0, claimedBw, claimedMig);
                 BidEvaluation eval = evaluateBid(container, synthetic);
-                if (eval != null) {
+                if (eval != null && eval.feasible()) {
                     container.recordLastBid(cloudId, eval.bidValue());
                     winnerContexts.put(container.getContainerId(), new BidContext(eval));
+                    double transferStart = CloudSim.clock();
+                    transferStarts.put(container.getContainerId(), transferStart);
+                    send(cloudId, CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_START,
+                            new MigrationTransfer(container, getId(), sourceHost(container), MetricsCollector.MigrationKind.CLOUD, actualLinkBandwidth(cloudId), linkLatencyFor(cloudId), trigger));
+                    MetricsRegistry.collector().markBidWinner(container.getContainerId(), cloudId);
+                    MetricsRegistry.collector().recordDecisionLatency(container.getContainerId(), container.getMigrationStart(), CloudSim.clock(), mode == 2);
+                    activeTransfers++;
                 }
-                double transferStart = CloudSim.clock();
-                transferStarts.put(container.getContainerId(), transferStart);
-                send(cloudId, CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_START,
-                        new MigrationTransfer(container, getId(), sourceHost(container), MetricsCollector.MigrationKind.CLOUD, actualLinkBandwidth(cloudId), linkLatencyFor(cloudId), trigger));
-                MetricsRegistry.collector().markBidWinner(container.getContainerId(), cloudId);
-                MetricsRegistry.collector().recordDecisionLatency(container.getContainerId(), container.getMigrationStart(), CloudSim.clock(), mode == 2);
-                activeTransfers++;
             }
             enqueuePending(container);
             return;
@@ -613,9 +617,11 @@ public class FogNodeController extends FogDevice {
     }
 
     private void settleSlaAndPayment(ContainerModule container, double finishTime, String finishFog) {
-        double completionLatency = finishTime - container.getArrivalTime();
-        boolean violated = completionLatency > container.getDeadlineSeconds();
-        double slaValue = violated ? 0 : 1;
+        double completionTime = finishTime;
+        double makespan = completionTime - container.getArrivalTime();
+        boolean slaMet = completionTime <= container.getDeadlineSeconds();
+        container.setSlaSuccess(slaMet);
+        container.setMakespan(makespan);
 
         BidContext context = winnerContexts.remove(container.getContainerId());
         BidEvaluation eval = context != null ? context.evaluation : null;
@@ -631,8 +637,21 @@ public class FogNodeController extends FogDevice {
         double trustBefore = eval != null ? eval.trustBefore() : trustManager.current(payeeId);
         double trustAfter = context != null && context.trustAfter >= 0 ? context.trustAfter : trustBefore;
 
-        double payment = (!violated && payeeId >= 0 && payeeId != container.getOwnerId()) ? bidValue : 0;
-        MetricsRegistry.collector().recordSla(container.getContainerId(), violated, completionLatency, container.getDeadlineSeconds(), slaValue, payment, container.getOwnerFog(), finishFog);
+        double payment = (payeeId >= 0 && payeeId != container.getOwnerId()) ? bidValue : 0;
+        MetricsRegistry.collector().recordSla(
+                container.getContainerId(),
+                container.getOriginatingEdge(),
+                finishFog,
+                container.getArrivalTime(),
+                completionTime,
+                container.getDeadlineSeconds(),
+                slaMet,
+                container.getTExecSeconds(),
+                container.getTNetSeconds(),
+                container.getTSlackSeconds(),
+                container.getTMigSeconds(),
+                makespan,
+                mode);
         if (payment > 0) {
             tokenManager.debit(container.getOwnerId(), payment);
             tokenManager.credit(payeeId, payment);
@@ -654,7 +673,7 @@ public class FogNodeController extends FogDevice {
                 bidValue,
                 effectiveBid,
                 payment,
-                !violated,
+                slaMet,
                 finishTime));
     }
 
@@ -717,6 +736,18 @@ public class FogNodeController extends FogDevice {
         return new NodeCapacity(cpu, mem, bw);
     }
 
+    private double timeToNextPredictedFault() {
+        double now = CloudSim.clock();
+        double soonest = Double.MAX_VALUE;
+        for (FogServer server : servers) {
+            double predicted = server.getPredictedFailureAt();
+            if (predicted > now) {
+                soonest = Math.min(soonest, predicted - now);
+            }
+        }
+        return soonest;
+    }
+
     private LoadSnapshot localLoadSnapshot() {
         NodeCapacity cap = aggregateCapacitySnapshot();
         double usedCpu = servers.stream().mapToDouble(FogServer::getUsedCpu).sum();
@@ -761,8 +792,8 @@ public class FogNodeController extends FogDevice {
     }
 
     private double computeMigrationTime(double containerSizeMb, double claimedBw) {
-        double bw = Math.max(1e-6, claimedBw);
-        return config.getBidding().getPauseSeconds() + containerSizeMb / bw + config.getBidding().getResumeSeconds();
+        double bwMbPerSec = Math.max(1e-6, claimedBw / 8.0);
+        return config.getBidding().getPauseSeconds() + containerSizeMb / bwMbPerSec + config.getBidding().getResumeSeconds();
     }
 
     private double resourceImpact(ContainerProfile profile, NodeCapacity cap, double linkCapacity) {
@@ -789,11 +820,12 @@ public class FogNodeController extends FogDevice {
         double projectedCpu = load.cpuLoad() + profile.getDemandMips() / Math.max(1e-6, cap.cpu());
         double projectedMem = load.memLoad() + profile.getRamMb() / Math.max(1e-6, cap.mem());
         double projectedBw = load.bwLoad() + profile.getBandwidth() / Math.max(1e-6, cap.bw());
-        double timeToDeadline = Math.max(0, container.getDeadlineSeconds() - (CloudSim.clock() - container.getArrivalTime()));
-        double timeToFault = Double.MAX_VALUE;
+        double timeToDeadline = Math.max(0, container.getDeadlineSeconds() - CloudSim.clock());
+        double timeToFault = bidderId == getId() ? timeToNextPredictedFault() : Double.MAX_VALUE;
         boolean feasible = response.isFeasible()
                 && projectedCpu <= 1.0 && projectedMem <= 1.0 && projectedBw <= 1.0
-                && migrationTime < Math.min(timeToFault, timeToDeadline);
+                && migrationTime <= timeToDeadline
+                && migrationTime <= timeToFault;
         double bidValue = migrationTime + config.getBidding().getResourceImpactK() * resourceImpact;
         double effectiveBid = trustManager.enabled() ? bidValue / Math.max(1e-6, trustBefore) : bidValue;
         double headroom = headroom(projectedCpu, projectedMem, projectedBw);

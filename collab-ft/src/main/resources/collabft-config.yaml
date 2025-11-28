@@ -45,16 +45,22 @@ trust:
   tauBw: 0.2
   tauMig: 5.0
 
+sla:
+  # Fraction of runtime to add as slack
+  slackRatio: 0.05 #0.2
+  # Additional network overhead as a fraction of runtime
+  netOverheadRatio: 0.05 #0.10
+
 task:
   # Number of tasks each edge emits (total per edge)
   # Set to 0 to keep emitting tasks continuously for the whole simulation
   tasksPerEdge: 10
   # Mean inter-arrival time (seconds) for exponential arrivals
-  meanInterArrivalSeconds: 200
-  jitterPercent: 20
+  meanInterArrivalSeconds: 300
+  jitterPercent: 10
   defaultProfile:
     # Desired runtime and CPU share; total work is runtimeSeconds * demandMips
-    runtimeSeconds: 300
+    runtimeSeconds: 280
     demandMips: 800
     # RAM demand in MB
     ramMb: 256
@@ -64,20 +70,23 @@ task:
     containerSizeMb: 150
   # Ranges for workload variability
   runtimeRange:
-    min: 240
-    max: 360
+    min: 200
+    max: 400
   demandMipsRange:
-    min: 360
-    max: 900
+    min: 150
+    max: 800
   ramRange:
-    min: 192
+    min: 128
     max: 512
   bandwidthRange:
     min: 200
     max: 600
   containerSizeRange:
-    min: 100
-    max: 200
+    min: 200
+    max: 450
+  # containerSizeRange:
+  #   min: 100
+  #   max: 200
   slaRuntimeMultiplier: 1.2
 
 topology:
@@ -213,6 +222,6 @@ topology:
 network:
   # Favor fog-to-fog over fog-to-cloud by making WAN slower
   interFogLatencyMs: 5
-  interFogBandwidthMbps: 8000
+  interFogBandwidthMbps: 2000 # 8000
   fogCloudLatencyMs: 50
-  fogCloudBandwidthMbps: 3000
+  fogCloudBandwidthMbps: 500 #3000

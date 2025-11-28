@@ -18,6 +18,7 @@ public class SimulationConfig {
     private TaskConfig task = new TaskConfig();
     private Topology topology = new Topology();
     private Network network = new Network();
+    private SlaConfig sla = new SlaConfig();
 
     public Simulation getSimulation() {
         return simulation;
@@ -81,6 +82,14 @@ public class SimulationConfig {
 
     public void setNetwork(Network network) {
         this.network = network;
+    }
+
+    public SlaConfig getSla() {
+        return sla;
+    }
+
+    public void setSla(SlaConfig sla) {
+        this.sla = sla;
     }
 
     public static class Simulation {
@@ -252,6 +261,27 @@ public class SimulationConfig {
 
         public void setMaxFogBidders(int maxFogBidders) {
             this.maxFogBidders = maxFogBidders;
+        }
+    }
+
+    public static class SlaConfig {
+        private double slackRatio = 0.3;
+        private double netOverheadRatio = 0.10;
+
+        public double getSlackRatio() {
+            return slackRatio;
+        }
+
+        public void setSlackRatio(double slackRatio) {
+            this.slackRatio = slackRatio;
+        }
+
+        public double getNetOverheadRatio() {
+            return netOverheadRatio;
+        }
+
+        public void setNetOverheadRatio(double netOverheadRatio) {
+            this.netOverheadRatio = netOverheadRatio;
         }
     }
 

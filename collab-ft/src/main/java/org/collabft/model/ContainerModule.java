@@ -1,6 +1,7 @@
 package org.collabft.model;
 
 import org.cloudbus.cloudsim.CloudletScheduler;
+import org.cloudbus.cloudsim.core.CloudSim;
 import org.fog.application.AppModule;
 import org.fog.scheduler.TupleScheduler;
 import org.fog.utils.FogUtils;
@@ -14,7 +15,7 @@ import java.util.UUID;
 public class ContainerModule extends AppModule {
     private final String containerId = UUID.randomUUID().toString();
     private final ContainerProfile profile;
-    private final double deadlineSeconds;
+    private final double deadlineTime;
     private double remainingWorkMi;
     private double lastStartTime = -1;
     private double expectedFinishTime = -1;
@@ -29,17 +30,39 @@ public class ContainerModule extends AppModule {
     private boolean paused;
     private int lastBidderId = -1;
     private double lastBidCost = 0.0;
+    private final double tExecSeconds;
+    private final double tNetSeconds;
+    private final double tSlackSeconds;
+    private final double tMigSeconds;
+    private String originatingEdge = "";
+    private boolean slaSuccess;
+    private double makespan = -1;
 
-    public ContainerModule(String name, String appId, int userId, ContainerProfile profile) {
-        this(name, appId, userId, profile, profile.getDeadlineSeconds(), new TupleScheduler(profile.getDemandMips(), 1));
+    public ContainerModule(String name, String appId, int userId, TaskProfile profile) {
+        this(name, appId, userId, profile.getContainerProfile(), profile.getDeadlineTime(), profile.getArrivalTime(),
+                profile.getTExecSeconds(), profile.getTNetSeconds(), profile.getTSlackSeconds(), profile.getTMigSeconds(),
+                profile.getOriginatingEdge(), new TupleScheduler(profile.getContainerProfile().getDemandMips(), 1));
     }
 
-    public ContainerModule(String name, String appId, int userId, ContainerProfile profile, double deadlineSeconds, CloudletScheduler scheduler) {
+    public ContainerModule(String name, String appId, int userId, ContainerProfile profile, double deadlineSeconds, double arrivalTime,
+                           double tExecSeconds, double tNetSeconds, double tSlackSeconds, double tMigSeconds,
+                           String originatingEdge, CloudletScheduler scheduler) {
         super(FogUtils.generateEntityId(), name, appId, userId, profile.getDemandMips(), profile.getRamMb(), Math.round(profile.getBandwidth()),
                 Math.round(profile.getContainerSizeMb()), "Xen", scheduler, Collections.emptyMap());
         this.profile = profile;
-        this.deadlineSeconds = deadlineSeconds;
+        this.deadlineTime = deadlineSeconds;
         this.remainingWorkMi = profile.getDemandMips() * profile.getRuntimeSeconds();
+        this.arrivalTime = arrivalTime;
+        this.tExecSeconds = tExecSeconds;
+        this.tNetSeconds = tNetSeconds;
+        this.tSlackSeconds = tSlackSeconds;
+        this.tMigSeconds = tMigSeconds;
+        this.originatingEdge = originatingEdge;
+    }
+
+    public ContainerModule(String name, String appId, int userId, ContainerProfile profile) {
+        this(name, appId, userId, profile, profile.getDeadlineSeconds(), CloudSim.clock(), profile.getRuntimeSeconds(),
+                0, 0, 0, "", new TupleScheduler(profile.getDemandMips(), 1));
     }
 
     public String getContainerId() {
@@ -51,7 +74,7 @@ public class ContainerModule extends AppModule {
     }
 
     public double getDeadlineSeconds() {
-        return deadlineSeconds;
+        return deadlineTime;
     }
 
     public double getRemainingWorkMi() {
@@ -162,5 +185,41 @@ public class ContainerModule extends AppModule {
 
     public double getLastBidCost() {
         return lastBidCost;
+    }
+
+    public double getTExecSeconds() {
+        return tExecSeconds;
+    }
+
+    public double getTNetSeconds() {
+        return tNetSeconds;
+    }
+
+    public double getTSlackSeconds() {
+        return tSlackSeconds;
+    }
+
+    public double getTMigSeconds() {
+        return tMigSeconds;
+    }
+
+    public String getOriginatingEdge() {
+        return originatingEdge;
+    }
+
+    public boolean isSlaSuccess() {
+        return slaSuccess;
+    }
+
+    public void setSlaSuccess(boolean slaSuccess) {
+        this.slaSuccess = slaSuccess;
+    }
+
+    public double getMakespan() {
+        return makespan;
+    }
+
+    public void setMakespan(double makespan) {
+        this.makespan = makespan;
     }
 }

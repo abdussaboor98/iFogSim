@@ -122,19 +122,20 @@ public class CloudDevice extends FogDevice {
 
     private BidResponse buildBid(ContainerModule container) {
         ContainerProfile profile = container.getProfile();
-        double claimedBw = Math.max(1e-6, Math.min(capacity.getUplinkBandwidth(), network.getFogCloudBandwidthMbps()));
-        double migrationTime = biddingConfig.getPauseSeconds() + profile.getContainerSizeMb() / claimedBw + biddingConfig.getResumeSeconds();
+        double claimedBwMbps = Math.max(1e-6, Math.min(capacity.getUplinkBandwidth(), network.getFogCloudBandwidthMbps()));
+        double claimedBwMbPerSec = claimedBwMbps / 8.0;
+        double migrationTime = biddingConfig.getPauseSeconds() + profile.getContainerSizeMb() / Math.max(1e-6, claimedBwMbPerSec) + biddingConfig.getResumeSeconds();
         double projectedCpu = (usedCpu + profile.getDemandMips()) / Math.max(1e-6, capacity.getCpuMips());
         double projectedMem = (usedRam + profile.getRamMb()) / Math.max(1e-6, capacity.getRamMb());
         double projectedBw = (usedBw + profile.getBandwidth()) / Math.max(1e-6, capacity.getBandwidth());
-        double timeToDeadline = Math.max(0, container.getDeadlineSeconds() - (CloudSim.clock() - container.getArrivalTime()));
-        boolean feasible = projectedCpu <= 1.0 && projectedMem <= 1.0 && projectedBw <= 1.0 && migrationTime < timeToDeadline;
+        double timeToDeadline = Math.max(0, container.getDeadlineSeconds() - CloudSim.clock());
+        boolean feasible = projectedCpu <= 1.0 && projectedMem <= 1.0 && projectedBw <= 1.0 && migrationTime <= timeToDeadline;
         double linkCapacity = network.getFogCloudBandwidthMbps();
         double resourceImpact = profile.getDemandMips() / Math.max(1e-6, capacity.getCpuMips())
                 + profile.getRamMb() / Math.max(1e-6, capacity.getRamMb())
                 + profile.getBandwidth() / Math.max(1e-6, linkCapacity);
         double bidValue = migrationTime + biddingConfig.getResourceImpactK() * resourceImpact;
-        return new BidResponse(getId(), container.getContainerId(), feasible, bidValue, claimedBw, migrationTime);
+        return new BidResponse(getId(), container.getContainerId(), feasible, bidValue, claimedBwMbps, migrationTime);
     }
 
     private boolean canHost(ContainerProfile profile) {
@@ -146,7 +147,7 @@ public class CloudDevice extends FogDevice {
         addContainer(module);
         double transferStart = CloudSim.clock();
         double transferSeconds = transfer.getLinkBandwidthMbps() > 0
-                ? module.getProfile().getContainerSizeMb() / transfer.getLinkBandwidthMbps()
+                ? module.getProfile().getContainerSizeMb() / Math.max(1e-6, transfer.getLinkBandwidthMbps() / 8.0)
                 : 0;
         double finish = transferStart + transferSeconds + transfer.getLatencySeconds();
         double execSeconds = computeExecutionSeconds(module);

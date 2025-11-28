@@ -66,8 +66,9 @@ public class MetricsCollector {
     }
 
     /** Record SLA outcome for a task/container. */
-    public void recordSla(String containerId, boolean violated, double completionLatency, double deadlineSeconds, double slaValue, double payment, String originFog, String finishFog) {
-        sla.add(new SlaRecord(containerId, !violated, completionLatency, deadlineSeconds, slaValue, payment, originFog, finishFog));
+    public void recordSla(String containerId, String originatingEdge, String assignedFogNode, double arrivalTime, double completionTime, double deadlineSeconds,
+                          boolean slaSuccess, double tExec, double tNet, double tSlack, double tMig, double makespan, int mode) {
+        sla.add(new SlaRecord(containerId, originatingEdge, assignedFogNode, arrivalTime, completionTime, deadlineSeconds, slaSuccess, tExec, tNet, tSlack, tMig, makespan, mode));
     }
 
     /** Record bidding payments/tokens. */
@@ -205,6 +206,8 @@ public class MetricsCollector {
         Files.writeString(outDir.resolve("resources.csv"), JsonUtil.toCsv(resources, "time,fog,server,containers,cpuLoad,memLoad,bwLoad"));
         Files.writeString(outDir.resolve("bids.csv"), JsonUtil.toCsv(bids, "time,containerId,bidderId,bidderName,claimedBw,claimedMigTime,bidValue,effectiveBid,feasible,winner,trustBefore"));
         Files.writeString(outDir.resolve("payment_log.csv"), JsonUtil.toCsv(settlements, "time,containerId,bidderId,bidderName,claimedBw,claimedMigTime,actualBw,actualMigTime,errBw,errMig,trustBefore,trustAfter,bidValue,effectiveBid,payment,slaMet"));
+        Files.writeString(outDir.resolve("sla_makespan_metrics.csv"), JsonUtil.toCsv(sla,
+                "taskId,originatingEdge,assignedFogNode,arrivalTime,completionTime,deadline,slaSuccess,T_exec,T_net,T_slack,T_mig,makespan,mode"));
     }
 
     public enum MigrationKind { INTRA_FOG, INTER_FOG, CLOUD }
@@ -225,7 +228,8 @@ public class MetricsCollector {
 
     public record GossipRecord(String sender, String receiver, double bytes, double timestamp, double cpuLoad, double memLoad, double bwLoad, boolean stale) { }
 
-    public record SlaRecord(String containerId, boolean slaMet, double completionLatency, double deadlineSeconds, double slaValue, double payment, String originFog, String finishFog) { }
+    public record SlaRecord(String containerId, String originatingEdge, String assignedFogNode, double arrivalTime, double completionTime, double deadlineSeconds,
+                            boolean slaSuccess, double tExec, double tNet, double tSlack, double tMig, double makespan, int mode) { }
 
     public record Payment(int payerId, int payeeId, double amount) { }
 
@@ -330,6 +334,11 @@ public class MetricsCollector {
                             .append(s.claimedBw()).append(',').append(s.claimedMigTime()).append(',').append(s.actualBw()).append(',').append(s.actualMigTime()).append(',')
                             .append(s.errBw()).append(',').append(s.errMig()).append(',').append(s.trustBefore()).append(',').append(s.trustAfter()).append(',')
                             .append(s.bidValue()).append(',').append(s.effectiveBid()).append(',').append(s.payment()).append(',').append(s.slaMet()).append("\n");
+                } else if (row instanceof SlaRecord s) {
+                    sb.append(s.containerId()).append(',').append(s.originatingEdge()).append(',').append(s.assignedFogNode()).append(',')
+                            .append(s.arrivalTime()).append(',').append(s.completionTime()).append(',').append(s.deadlineSeconds()).append(',')
+                            .append(s.slaSuccess()).append(',').append(s.tExec()).append(',').append(s.tNet()).append(',').append(s.tSlack()).append(',')
+                            .append(s.tMig()).append(',').append(s.makespan()).append(',').append(s.mode()).append("\n");
                 }
             }
             return sb.toString();

@@ -21,7 +21,7 @@ public final class ScoringUtil {
 
         double epsilon = 1e-3;
         double k = 0.1;
-        double slack = Math.max(epsilon, container.getDeadlineSeconds() - (nowSeconds - container.getArrivalTime()));
+        double slack = Math.max(epsilon, container.getDeadlineSeconds() - nowSeconds);
         // U = 1 / slack; U_norm = min(1, U * k)
         double u = 1.0 / slack;
         double uNorm = Math.min(1.0, u * k);

@@ -71,15 +71,15 @@ public final class MetricsSummarizer {
 
     private static Map<String, Object> slaSummary(MetricsCollector collector) {
         Map<String, Object> s = new HashMap<>();
-        long violations = collector.getSla().stream().filter(r -> !r.slaMet()).count();
+        long violations = collector.getSla().stream().filter(r -> !r.slaSuccess()).count();
         long total = collector.getSla().size();
-        double avgLatency = collector.getSla().stream().mapToDouble(MetricsCollector.SlaRecord::completionLatency).average().orElse(0);
-        double avgSlaValue = collector.getSla().stream().mapToDouble(MetricsCollector.SlaRecord::slaValue).average().orElse(0);
+        double avgLatency = collector.getSla().stream().mapToDouble(MetricsCollector.SlaRecord::makespan).average().orElse(0);
+        double avgDeadline = collector.getSla().stream().mapToDouble(MetricsCollector.SlaRecord::deadlineSeconds).average().orElse(0);
         s.put("count", total);
         s.put("violations", violations);
         s.put("violationRatio", total == 0 ? 0 : (double) violations / total);
         s.put("avgCompletionLatency", avgLatency);
-        s.put("avgSlaValue", avgSlaValue);
+        s.put("avgDeadline", avgDeadline);
         return s;
     }
 

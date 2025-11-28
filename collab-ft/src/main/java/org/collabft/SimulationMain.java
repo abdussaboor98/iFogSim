@@ -90,7 +90,7 @@ public class SimulationMain {
                 ContainerProfile profile = config.getTask().getDefaultProfile();
                 ResourceCapacity tiny = new ResourceCapacity(500, 512, 1000);
                 EdgeDevice edge = new EdgeDevice(controller.getName() + "-edge-" + i, tiny, profile,
-                        config.getTask(), config.getTopology().getEdge(),
+                        config.getTask(), config.getTopology().getEdge(), config.getBidding(), config.getNetwork(), config.getSla(),
                         config.getSimulation().getSeed() + i);
                 edge.setParentId(controller.getId());
                 edges.add(edge);
