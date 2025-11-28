@@ -9,7 +9,7 @@ gossip:
   stalenessThresholdIntervals: 3
 
 fault:
-  predictionLeadSeconds: 30          # Enough time to allow some local recovery, but not trivial
+  predictionLeadSeconds: 60          # Enough time to allow some local recovery, but not trivial
   meanTimeBetweenFailureSeconds: 45  # Fewer overlapping faults → reduces excessive local_infeasible
   startDelaySeconds: 30
   recoverySeconds: 240               # Recovery still meaningful under load

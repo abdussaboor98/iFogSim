@@ -179,6 +179,26 @@ public class MetricsCollector {
         return makespans;
     }
 
+    public void reset() {
+        migrations.clear();
+        faults.clear();
+        faultPredictions.clear();
+        placements.clear();
+        centralizedPlacements.clear();
+        gossips.clear();
+        sla.clear();
+        load.clear();
+        resources.clear();
+        network.clear();
+        bids.clear();
+        settlements.clear();
+        economic.payments.clear();
+        decisionLatency.clear();
+        makespans.clear();
+        simStart = 0;
+        simFinish = 0;
+    }
+
     public double getSimStart() {
         return simStart;
     }

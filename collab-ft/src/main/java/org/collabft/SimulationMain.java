@@ -30,7 +30,18 @@ public class SimulationMain {
 
         // Enable console logging so runs show visible progress.
         Log.enable();
-        Log.printLine("Starting collab-ft simulation; mode=" + config.getSimulation().getMode());
+        int[] modes = new int[]{1, 2};
+        for (int mode : modes) {
+            runSimulation(config, mode);
+        }
+        Log.printLine("All simulations finished.");
+    }
+
+    private static void runSimulation(SimulationConfig config, int mode) throws Exception {
+        // reset metrics between runs
+        MetricsRegistry.collector().reset();
+        config.getSimulation().setMode(mode);
+        Log.printLine("Starting collab-ft simulation; mode=" + mode);
         MetricsRegistry.collector().markSimStart(0);
         CloudSim.init(1, Calendar.getInstance(), false);
         CloudSim.terminateSimulation(config.getSimulation().getDurationSeconds());
@@ -77,7 +88,7 @@ public class SimulationMain {
         }
 
         // Optional centralized scheduler
-        if (config.getSimulation().getMode() == 2) {
+        if (mode == 2) {
             CentralCloudScheduler scheduler = new CentralCloudScheduler("central-scheduler", controllers, cloud, config.getNetwork(), config.getBidding());
             for (FogNodeController controller : controllers) {
                 controller.setSchedulerId(scheduler.getId());
@@ -98,7 +109,7 @@ public class SimulationMain {
             }
         }
 
-        if (config.getSimulation().getMode() == 1 && config.getGossip().isEnabled()) {
+        if (mode == 1 && config.getGossip().isEnabled()) {
             double interval = config.getGossip().getIntervalSeconds();
             new GossipAgent("gossip-agent", controllers, interval);
         }
@@ -118,8 +129,8 @@ public class SimulationMain {
         CloudSim.startSimulation();
         CloudSim.stopSimulation();
         MetricsRegistry.collector().markSimFinish(config.getSimulation().getDurationSeconds());
-        // Export metrics to logs/metrics_*.json
-        Path metricsDir = Path.of("logs");
+        // Export metrics to mode-specific logs directory
+        Path metricsDir = Path.of("logs", "mode-" + mode);
         try {
             MetricsRegistry.collector().export(metricsDir);
             Log.printLine("Metrics exported to " + metricsDir.toAbsolutePath());
@@ -127,11 +138,11 @@ public class SimulationMain {
             Log.printLine("Failed to export metrics: " + e.getMessage());
         }
         try {
-            MetricsSummarizer.summarize(MetricsRegistry.collector(), Path.of("logs"));
-            Log.printLine("Summary exported to logs/summary.json");
+            MetricsSummarizer.summarize(MetricsRegistry.collector(), metricsDir);
+            Log.printLine("Summary exported to " + metricsDir.resolve("summary.json").toAbsolutePath());
         } catch (Exception e) {
             Log.printLine("Failed to write summary: " + e.getMessage());
         }
-        Log.printLine("Simulation finished.");
+        Log.printLine("Simulation finished for mode " + mode);
     }
 }
