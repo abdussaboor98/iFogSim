@@ -110,6 +110,10 @@ public class FogServer extends FogDevice {
 
     public double getPredictedFailureAt() { return predictedFailureAt; }
 
+    public boolean isUnavailableForPrediction() {
+        return isFaulted() || isPredictedToFail();
+    }
+
     public boolean isFaulted() { return failed || faultActive || isPredictedToFail(); }
 
     public void clearPrediction() {

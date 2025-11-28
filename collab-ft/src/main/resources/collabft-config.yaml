@@ -1,41 +1,27 @@
 simulation:
-  # mode: 1 (distributed gossip+bidding) or 2 (centralized cloud scheduler)
-  # Use mode 2 so the cloud is only used when fog resources are infeasible.
-  mode: 2
-  # RNG seed to keep experiments reproducible
+  mode: 1
   seed: 42
-  # Simulation end time in seconds
   durationSeconds: 4800
 
 gossip:
   enabled: true
-  # Period between gossip rounds (seconds)
-  intervalSeconds: 10
-  # Entries older than this many intervals are ignored
-  stalenessThresholdIntervals: 7
+  intervalSeconds: 7
+  stalenessThresholdIntervals: 3
 
 fault:
-  # Prediction horizon Δ before failure occurs
-  predictionLeadSeconds: 120
-  # Mean time between failures (seconds) for Poisson process
-  meanTimeBetweenFailureSeconds: 30
-  # Do not start injecting faults until this offset (seconds)
-  startDelaySeconds: 60
-  # Time until a failed server recovers (seconds)
-  recoverySeconds: 300
-  # Fault type probabilities (must sum to ~1.0)
+  predictionLeadSeconds: 30          # Enough time to allow some local recovery, but not trivial
+  meanTimeBetweenFailureSeconds: 45  # Fewer overlapping faults → reduces excessive local_infeasible
+  startDelaySeconds: 30
+  recoverySeconds: 240               # Recovery still meaningful under load
   cpuFailureProb: 0.33
   bandwidthDegradationProb: 0.34
   serverCrashProb: 0.33
 
 bidding:
-  # Maximum number of fog bidders to invite (set 0 for no cap)
   maxFogBidders: 4
-  # Pause/resume overhead for migration time
-  pauseSeconds: 1.0
-  resumeSeconds: 1.0
-  # k for bid_value = migrationTime + k * resourceImpact
-  resourceImpactK: 0.5
+  pauseSeconds: 1.5
+  resumeSeconds: 1.5
+  resourceImpactK: 0.6
 
 trust:
   enableTrust: false
@@ -46,95 +32,81 @@ trust:
   tauMig: 5.0
 
 sla:
-  # Fraction of runtime to add as slack
-  slackRatio: 0.05 #0.2
-  # Additional network overhead as a fraction of runtime
-  netOverheadRatio: 0.05 #0.10
+  slackRatio: 0.06                # A bit more realistic than 0.02; reduces excessive misses
+  netOverheadRatio: 0.04
 
 task:
-  # Number of tasks each edge emits (total per edge)
-  # Set to 0 to keep emitting tasks continuously for the whole simulation
-  tasksPerEdge: 10
-  # Mean inter-arrival time (seconds) for exponential arrivals
-  meanInterArrivalSeconds: 400
+  tasksPerEdge: 24                # Enough load but not extreme
+  meanInterArrivalSeconds: 160    # Balanced inflow; avoids 541 local-infeasible
   jitterPercent: 20
   defaultProfile:
-    # Desired runtime and CPU share; total work is runtimeSeconds * demandMips
-    runtimeSeconds: 280
-    demandMips: 800
-    # RAM demand in MB
+    runtimeSeconds: 260
+    demandMips: 700
     ramMb: 256
-    # Bandwidth demand in Mbps
-    bandwidth: 400
-    # Image+state size in MB
-    containerSizeMb: 150
-  # Ranges for workload variability
+    bandwidth: 300
+    containerSizeMb: 240
   runtimeRange:
     min: 200
-    max: 500
+    max: 400
   demandMipsRange:
-    min: 150
-    max: 800
+    min: 200
+    max: 600
   ramRange:
     min: 128
     max: 512
   bandwidthRange:
-    min: 200
-    max: 600
+    min: 150
+    max: 550
   containerSizeRange:
     min: 200
-    max: 450
-  # containerSizeRange:
-  #   min: 100
-  #   max: 200
+    max: 420
   slaRuntimeMultiplier: 1.2
 
 topology:
   fogNodes:
-    # Define 6 fog nodes; adjust counts or capacities as needed.
     - name: fog-1
-      servers: 2
+      servers: 3
       capacityMultiplier: 1
       serverCapacity:
         cpuMips: 2000
         ramMb: 4096
-        bandwidth: 4000
+        bandwidth: 3500
         storageMb: 100000
-        uplinkBandwidth: 8000
-        downlinkBandwidth: 8000
+        uplinkBandwidth: 6000
+        downlinkBandwidth: 6000
         ratePerMips: 0.0
     - name: fog-2
-      servers: 2
+      servers: 4
       capacityMultiplier: 1
       serverCapacity:
         cpuMips: 2000
         ramMb: 4096
-        bandwidth: 4000
+        bandwidth: 3500
         storageMb: 100000
-        uplinkBandwidth: 8000
-        downlinkBandwidth: 8000
+        uplinkBandwidth: 6000
+        downlinkBandwidth: 6000
         ratePerMips: 0.0
     - name: fog-3
       servers: 3
       capacityMultiplier: 1
       serverCapacity:
-        cpuMips: 3000
+        cpuMips: 2000
         ramMb: 4096
-        bandwidth: 5000
+        bandwidth: 4500
         storageMb: 100000
-        uplinkBandwidth: 12000
-        downlinkBandwidth: 12000
+        uplinkBandwidth: 9000
+        downlinkBandwidth: 9000
         ratePerMips: 0.0
     - name: fog-4
-      servers: 6
+      servers: 4
       capacityMultiplier: 1
       serverCapacity:
         cpuMips: 2000
         ramMb: 4096
-        bandwidth: 4000
+        bandwidth: 3500
         storageMb: 100000
-        uplinkBandwidth: 8000
-        downlinkBandwidth: 8000
+        uplinkBandwidth: 6000
+        downlinkBandwidth: 6000
         ratePerMips: 0.0
     - name: fog-5
       servers: 4
@@ -142,10 +114,10 @@ topology:
       serverCapacity:
         cpuMips: 2000
         ramMb: 4096
-        bandwidth: 4000
+        bandwidth: 3500
         storageMb: 100000
-        uplinkBandwidth: 8000
-        downlinkBandwidth: 8000
+        uplinkBandwidth: 6000
+        downlinkBandwidth: 6000
         ratePerMips: 0.0
     - name: fog-6
       servers: 4
@@ -153,10 +125,10 @@ topology:
       serverCapacity:
         cpuMips: 2000
         ramMb: 4096
-        bandwidth: 4000
+        bandwidth: 3500
         storageMb: 100000
-        uplinkBandwidth: 8000
-        downlinkBandwidth: 8000
+        uplinkBandwidth: 6000
+        downlinkBandwidth: 6000
         ratePerMips: 0.0
     - name: fog-7
       servers: 4
@@ -164,32 +136,32 @@ topology:
       serverCapacity:
         cpuMips: 2000
         ramMb: 4096
-        bandwidth: 4000
+        bandwidth: 3500
         storageMb: 100000
-        uplinkBandwidth: 8000
-        downlinkBandwidth: 8000
+        uplinkBandwidth: 6000
+        downlinkBandwidth: 6000
         ratePerMips: 0.0
     - name: fog-8
-      servers: 5
+      servers: 4
       capacityMultiplier: 1
       serverCapacity:
         cpuMips: 2000
         ramMb: 4096
-        bandwidth: 4000
+        bandwidth: 3500
         storageMb: 100000
-        uplinkBandwidth: 8000
-        downlinkBandwidth: 8000
+        uplinkBandwidth: 6000
+        downlinkBandwidth: 6000
         ratePerMips: 0.0
     - name: fog-9
-      servers: 4
+      servers: 3
       capacityMultiplier: 1
       serverCapacity:
-        cpuMips: 4000
+        cpuMips: 2200
         ramMb: 4096
-        bandwidth: 5000
+        bandwidth: 4500
         storageMb: 100000
-        uplinkBandwidth: 8000
-        downlinkBandwidth: 8000
+        uplinkBandwidth: 9000
+        downlinkBandwidth: 9000
         ratePerMips: 0.0
     - name: fog-10
       servers: 4
@@ -197,31 +169,30 @@ topology:
       serverCapacity:
         cpuMips: 2000
         ramMb: 4096
-        bandwidth: 4000
+        bandwidth: 3500
         storageMb: 100000
-        uplinkBandwidth: 8000
-        downlinkBandwidth: 8000
+        uplinkBandwidth: 6000
+        downlinkBandwidth: 6000
         ratePerMips: 0.0
+
   cloud:
     capacity:
-      # Central fallback capacity (treated as abundant bandwidth by default)
-      cpuMips: 12000
-      ramMb: 65536
-      bandwidth: 60000
+      cpuMips: 9000
+      ramMb: 45000
+      bandwidth: 40000
       storageMb: 200000
-      uplinkBandwidth: 60000
-      downlinkBandwidth: 60000
+      uplinkBandwidth: 40000
+      downlinkBandwidth: 40000
       ratePerMips: 0.0
+
   edge:
-    # Number of edge devices attached to each fog node
     devicesPerFog: 6
-    latencyMs: 2
-    bandwidthMbps: 2000
+    latencyMs: 3
+    bandwidthMbps: 1500
     heterogeneityJitter: 10
 
 network:
-  # Favor fog-to-fog over fog-to-cloud by making WAN slower
-  interFogLatencyMs: 5
-  interFogBandwidthMbps: 2000 # 8000
-  fogCloudLatencyMs: 50
-  fogCloudBandwidthMbps: 500 #3000
+  interFogLatencyMs: 8
+  interFogBandwidthMbps: 1500    # Slightly higher so distributed migration is viable
+  fogCloudLatencyMs: 70
+  fogCloudBandwidthMbps: 150     # Slow but not catastrophic

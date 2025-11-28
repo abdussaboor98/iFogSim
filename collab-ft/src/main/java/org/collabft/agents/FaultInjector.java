@@ -54,9 +54,17 @@ public class FaultInjector extends SimEntity {
             if (ev.getData() instanceof FaultNotice notice) {
                 // Prediction notice delivered to controller early
                 if (notice.isPrediction()) {
+                    if (notice.getServer().isUnavailableForPrediction()) {
+                        scheduleNext();
+                        return;
+                    }
                     send(notice.getControllerId(), 0, CollabSimTags.FAULT_EVENT, notice);
                     // wait for actual fault event to schedule next failure
                 } else {
+                    if (notice.getServer().isUnavailableForPrediction()) {
+                        scheduleNext();
+                        return;
+                    }
                     send(notice.getControllerId(), 0, CollabSimTags.FAULT_EVENT, notice);
                     send(notice.getServer().getId(), recoverySeconds, CollabSimTags.RECOVERY_EVENT);
                     MetricsRegistry.collector().recordFault(
@@ -85,7 +93,15 @@ public class FaultInjector extends SimEntity {
             startOffset = startDelaySeconds - CloudSim.clock();
             first = false;
         }
-        Target target = targets.get(random.nextInt(targets.size()));
+        List<Target> eligible = targets.stream()
+                .filter(t -> !t.server().isUnavailableForPrediction())
+                .toList();
+        if (eligible.isEmpty()) {
+            // Retry later when some servers are healthy again.
+            send(getId(), Math.max(CloudSim.getMinTimeBetweenEvents(), meanTimeBetweenFailureSeconds / 10), CollabSimTags.FAULT_EVENT, null);
+            return;
+        }
+        Target target = eligible.get(random.nextInt(eligible.size()));
         FaultNotice.FaultType type = pickType();
         double failureDelay = startOffset + exponential(meanTimeBetweenFailureSeconds);
         double predictionDelay = Math.max(CloudSim.getMinTimeBetweenEvents(), failureDelay - leadSeconds);
