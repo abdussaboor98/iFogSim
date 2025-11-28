@@ -132,7 +132,7 @@ public class CloudDevice extends FogDevice {
         double cmig = transferSeconds + biddingConfig.getMigrationRestoreFactor() * profile.getContainerSizeMb();
         double latencyPenaltySeconds = transferSeconds + latencySeconds;
         // Apply a strong multiplier so fog-cloud latency meaningfully increases the bid cost.
-        double latencyPenalty = latencyPenaltySeconds * biddingConfig.getFailureWeight() * 100;
+        double latencyPenalty = latencyPenaltySeconds * biddingConfig.getFailureWeight();// * 100;
         double cost = cres + crisk + cmig + latencyPenalty;
         return new BidResponse(getId(), container.getContainerId(), true, 0.1, cost);
     }

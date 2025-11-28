@@ -59,8 +59,8 @@ public class MetricsCollector {
     }
 
     /** Record SLA outcome for a task/container. */
-    public void recordSla(String containerId, boolean violated, double completionLatency, double deadlineSeconds, double slaValue, double payment) {
-        sla.add(new SlaRecord(containerId, !violated, completionLatency, deadlineSeconds, slaValue, payment));
+    public void recordSla(String containerId, boolean violated, double completionLatency, double deadlineSeconds, double slaValue, double payment, String originFog, String finishFog) {
+        sla.add(new SlaRecord(containerId, !violated, completionLatency, deadlineSeconds, slaValue, payment, originFog, finishFog));
     }
 
     /** Record bidding payments/tokens. */
@@ -204,7 +204,7 @@ public class MetricsCollector {
 
     public record GossipRecord(String sender, String receiver, double bytes, double timestamp, double cpuLoad, double memLoad, double bwLoad, boolean stale) { }
 
-    public record SlaRecord(String containerId, boolean slaMet, double completionLatency, double deadlineSeconds, double slaValue, double payment) { }
+    public record SlaRecord(String containerId, boolean slaMet, double completionLatency, double deadlineSeconds, double slaValue, double payment, String originFog, String finishFog) { }
 
     public record Payment(int payerId, int payeeId, double amount) { }
 

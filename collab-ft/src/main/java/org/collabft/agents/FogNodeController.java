@@ -261,12 +261,13 @@ public class FogNodeController extends FogDevice {
         }
         if (getId() == container.getOwnerId()) {
             container.markCompleted();
-            settleSlaAndPayment(container, notice.getFinish());
-            bidManager.clearWinner(container.getContainerId());
-        } else if (hostedHere) {
-            send(container.getOwnerId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.TASK_COMPLETE, notice);
-        }
-        retryPendingMigrations();
+        String finishFog = hostedHere ? getName() : notice.getHostName();
+        settleSlaAndPayment(container, notice.getFinish(), finishFog);
+        bidManager.clearWinner(container.getContainerId());
+    } else if (hostedHere) {
+        send(container.getOwnerId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.TASK_COMPLETE, notice);
+    }
+    retryPendingMigrations();
     }
 
     private void handleGossip(SimEvent ev) {
@@ -555,7 +556,7 @@ public class FogNodeController extends FogDevice {
         }
     }
 
-    private void settleSlaAndPayment(ContainerModule container, double finishTime) {
+    private void settleSlaAndPayment(ContainerModule container, double finishTime, String finishFog) {
         double completionLatency = finishTime - container.getArrivalTime();
         boolean violated = completionLatency > container.getDeadlineSeconds();
 
@@ -576,7 +577,7 @@ public class FogNodeController extends FogDevice {
         }
         double eta = config.getSla().getPenaltyEta();
         double amount = violated ? Math.max(0, bidCost - eta * slaValue) : bidCost + slaValue;
-        MetricsRegistry.collector().recordSla(container.getContainerId(), violated, completionLatency, container.getDeadlineSeconds(), slaValue, amount);
+        MetricsRegistry.collector().recordSla(container.getContainerId(), violated, completionLatency, container.getDeadlineSeconds(), slaValue, amount, container.getOwnerFog(), finishFog);
         tokenManager.debit(container.getOwnerId(), amount);
         tokenManager.credit(payeeId, amount);
         MetricsRegistry.collector().recordPayment(container.getOwnerId(), payeeId, amount);

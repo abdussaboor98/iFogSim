@@ -215,5 +215,5 @@ network:
   # Favor fog-to-fog over fog-to-cloud by making WAN slower
   interFogLatencyMs: 5
   interFogBandwidthMbps: 8000
-  fogCloudLatencyMs: 40
+  fogCloudLatencyMs: 50
   fogCloudBandwidthMbps: 3000
