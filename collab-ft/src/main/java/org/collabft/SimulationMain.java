@@ -127,8 +127,8 @@ public class SimulationMain {
             Log.printLine("Failed to export metrics: " + e.getMessage());
         }
         try {
-            MetricsSummarizer.summarize(MetricsRegistry.collector(), Path.of("results"));
-            Log.printLine("Summary exported to results/summary.json");
+            MetricsSummarizer.summarize(MetricsRegistry.collector(), Path.of("logs"));
+            Log.printLine("Summary exported to logs/summary.json");
         } catch (Exception e) {
             Log.printLine("Failed to write summary: " + e.getMessage());
         }
