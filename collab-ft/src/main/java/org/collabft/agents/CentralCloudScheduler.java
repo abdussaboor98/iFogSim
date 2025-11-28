@@ -112,7 +112,7 @@ public class CentralCloudScheduler extends SimEntity {
             double resourceImpact = container.getProfile().getDemandMips() / Math.max(1e-6, cap.cpu())
                     + container.getProfile().getRamMb() / Math.max(1e-6, cap.mem())
                     + container.getProfile().getBandwidth() / Math.max(1e-6, linkBw);
-            double bidValue = migrationTime + biddingConfig.getKResourceImpact() * resourceImpact;
+            double bidValue = migrationTime + biddingConfig.getResourceImpactK() * resourceImpact;
             for (FogServer server : controller.getServers()) {
                 double projectedCpu = (server.getUsedCpu() + container.getProfile().getDemandMips()) / Math.max(1e-6, server.getCapacity().getCpuMips() * server.getCpuFactor());
                 double projectedMem = (server.getUsedRam() + container.getProfile().getRamMb()) / Math.max(1e-6, server.getCapacity().getRamMb());

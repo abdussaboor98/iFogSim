@@ -35,7 +35,7 @@ bidding:
   pauseSeconds: 1.0
   resumeSeconds: 1.0
   # k for bid_value = migrationTime + k * resourceImpact
-  kResourceImpact: 0.5
+  resourceImpactK: 0.5
 
 trust:
   enableTrust: false

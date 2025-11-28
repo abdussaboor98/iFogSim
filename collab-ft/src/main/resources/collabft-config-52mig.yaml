@@ -32,7 +32,7 @@ bidding:
   maxFogBidders: 4
   pauseSeconds: 1.0
   resumeSeconds: 1.0
-  kResourceImpact: 0.5
+  resourceImpactK: 0.5
 
 trust:
   enableTrust: false

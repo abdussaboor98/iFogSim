@@ -133,7 +133,7 @@ public class CloudDevice extends FogDevice {
         double resourceImpact = profile.getDemandMips() / Math.max(1e-6, capacity.getCpuMips())
                 + profile.getRamMb() / Math.max(1e-6, capacity.getRamMb())
                 + profile.getBandwidth() / Math.max(1e-6, linkCapacity);
-        double bidValue = migrationTime + biddingConfig.getKResourceImpact() * resourceImpact;
+        double bidValue = migrationTime + biddingConfig.getResourceImpactK() * resourceImpact;
         return new BidResponse(getId(), container.getContainerId(), feasible, bidValue, claimedBw, migrationTime);
     }
 

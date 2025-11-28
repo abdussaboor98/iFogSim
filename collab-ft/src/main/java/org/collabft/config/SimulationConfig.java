@@ -221,7 +221,7 @@ public class SimulationConfig {
     public static class BiddingConfig {
         private double pauseSeconds = 1.0;
         private double resumeSeconds = 1.0;
-        private double kResourceImpact = 0.5;
+        private double resourceImpactK = 0.5;
         private int maxFogBidders = 3;
 
         public double getPauseSeconds() {
@@ -240,12 +240,19 @@ public class SimulationConfig {
             this.resumeSeconds = resumeSeconds;
         }
 
-        public double getKResourceImpact() {
-            return kResourceImpact;
+        public double getResourceImpactK() {
+            return resourceImpactK;
         }
 
-        public void setKResourceImpact(double kResourceImpact) {
-            this.kResourceImpact = kResourceImpact;
+        public void setResourceImpactK(double resourceImpactK) {
+            this.resourceImpactK = resourceImpactK;
+        }
+
+        /**
+         * Backwards-compatibility for configs that still use the old key.
+         */
+        public void setkResourceImpact(double kResourceImpact) {
+            this.resourceImpactK = kResourceImpact;
         }
 
         public int getMaxFogBidders() {

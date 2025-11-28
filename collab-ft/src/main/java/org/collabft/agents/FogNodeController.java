@@ -161,7 +161,7 @@ public class FogNodeController extends FogDevice {
                 && projectedCpu <= 1.0 && projectedMem <= 1.0 && projectedBw <= 1.0
                 && migrationTime < Math.min(Double.MAX_VALUE, timeToDeadline);
         double resourceImpact = resourceImpact(profile, cap, claimedBw);
-        double bidValue = migrationTime + config.getBidding().getKResourceImpact() * resourceImpact;
+        double bidValue = migrationTime + config.getBidding().getResourceImpactK() * resourceImpact;
         MetricsRegistry.collector().recordBid(container.getContainerId(), getId(), getName(), claimedBw, migrationTime, bidValue, bidValue, feasible, false, trustManager.current(getId()), CloudSim.clock());
         send(request.getOriginId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.BID_RESPONSE,
                 new BidResponse(getId(), container.getContainerId(), feasible, bidValue, claimedBw, migrationTime));
@@ -794,7 +794,7 @@ public class FogNodeController extends FogDevice {
         boolean feasible = response.isFeasible()
                 && projectedCpu <= 1.0 && projectedMem <= 1.0 && projectedBw <= 1.0
                 && migrationTime < Math.min(timeToFault, timeToDeadline);
-        double bidValue = migrationTime + config.getBidding().getKResourceImpact() * resourceImpact;
+        double bidValue = migrationTime + config.getBidding().getResourceImpactK() * resourceImpact;
         double effectiveBid = trustManager.enabled() ? bidValue / Math.max(1e-6, trustBefore) : bidValue;
         double headroom = headroom(projectedCpu, projectedMem, projectedBw);
         double latency = linkLatencyFor(bidderId);
