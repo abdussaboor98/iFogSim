@@ -53,7 +53,8 @@ public class EdgeDevice extends FogDevice {
     @Override
     public void startEntity() {
         super.startEntity();
-        scheduleNext(0);
+        double firstDelay = exponential(meanInterArrival);
+        scheduleNext(firstDelay);
     }
 
     @Override
@@ -95,11 +96,13 @@ public class EdgeDevice extends FogDevice {
     private ContainerProfile sampleProfile() {
         ContainerProfile p = new ContainerProfile();
         p.setDemandMips(sample(taskConfig.getDemandMipsRange(), baseProfile.getDemandMips()));
-        p.setWorkMi(sample(taskConfig.getWorkMiRange(), baseProfile.getWorkMi()));
+        double runtime = sample(taskConfig.getRuntimeRange(), baseProfile.getRuntimeSeconds());
+        p.setRuntimeSeconds(runtime);
         p.setRamMb((int) sample(taskConfig.getRamRange(), baseProfile.getRamMb()));
         p.setBandwidth(sample(taskConfig.getBandwidthRange(), baseProfile.getBandwidth()));
         p.setContainerSizeMb(sample(taskConfig.getContainerSizeRange(), baseProfile.getContainerSizeMb()));
-        p.setDeadlineSeconds(sample(taskConfig.getDeadlineRange(), baseProfile.getDeadlineSeconds()));
+        double deadline = runtime * taskConfig.getSlaRuntimeMultiplier();
+        p.setDeadlineSeconds(deadline);
         return p;
     }
 

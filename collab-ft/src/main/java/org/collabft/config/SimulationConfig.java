@@ -210,39 +210,13 @@ public class SimulationConfig {
     }
 
     public static class BiddingConfig {
-        private int topK = 3;
-        private double suitabilityThreshold = 0.3;
-        private double responseTimeoutSeconds = 20;
         private double cpuUnitCost = 1.0;
         private double memUnitCost = 0.5;
         private double bwUnitCost = 0.2;
         private double failureWeight = 5.0;
         private double migrationRestoreFactor = 0.1;
         private double historicalPenaltyWeight = 1.0;
-
-        public int getTopK() {
-            return topK;
-        }
-
-        public void setTopK(int topK) {
-            this.topK = topK;
-        }
-
-        public double getSuitabilityThreshold() {
-            return suitabilityThreshold;
-        }
-
-        public void setSuitabilityThreshold(double suitabilityThreshold) {
-            this.suitabilityThreshold = suitabilityThreshold;
-        }
-
-        public double getResponseTimeoutSeconds() {
-            return responseTimeoutSeconds;
-        }
-
-        public void setResponseTimeoutSeconds(double responseTimeoutSeconds) {
-            this.responseTimeoutSeconds = responseTimeoutSeconds;
-        }
+        private int maxFogBidders = 3;
 
         public double getCpuUnitCost() {
             return cpuUnitCost;
@@ -291,6 +265,14 @@ public class SimulationConfig {
         public void setHistoricalPenaltyWeight(double historicalPenaltyWeight) {
             this.historicalPenaltyWeight = historicalPenaltyWeight;
         }
+
+        public int getMaxFogBidders() {
+            return maxFogBidders;
+        }
+
+        public void setMaxFogBidders(int maxFogBidders) {
+            this.maxFogBidders = maxFogBidders;
+        }
     }
 
     public static class TaskConfig {
@@ -299,11 +281,11 @@ public class SimulationConfig {
         private double jitterPercent = 0;
         private ContainerProfile defaultProfile = new ContainerProfile();
         private Range demandMipsRange = new Range();
-        private Range workMiRange = new Range();
+        private Range runtimeRange = new Range();
         private Range ramRange = new Range();
         private Range bandwidthRange = new Range();
         private Range containerSizeRange = new Range();
-        private Range deadlineRange = new Range();
+        private double slaRuntimeMultiplier = 1.2;
 
         public int getTasksPerEdge() {
             return tasksPerEdge;
@@ -345,12 +327,20 @@ public class SimulationConfig {
             this.demandMipsRange = demandMipsRange;
         }
 
-        public Range getWorkMiRange() {
-            return workMiRange;
+        public Range getRuntimeRange() {
+            return runtimeRange;
         }
 
-        public void setWorkMiRange(Range workMiRange) {
-            this.workMiRange = workMiRange;
+        public void setRuntimeRange(Range runtimeRange) {
+            this.runtimeRange = runtimeRange;
+        }
+
+        public double getSlaRuntimeMultiplier() {
+            return slaRuntimeMultiplier;
+        }
+
+        public void setSlaRuntimeMultiplier(double slaRuntimeMultiplier) {
+            this.slaRuntimeMultiplier = slaRuntimeMultiplier;
         }
 
         public Range getRamRange() {
@@ -377,13 +367,6 @@ public class SimulationConfig {
             this.containerSizeRange = containerSizeRange;
         }
 
-        public Range getDeadlineRange() {
-            return deadlineRange;
-        }
-
-        public void setDeadlineRange(Range deadlineRange) {
-            this.deadlineRange = deadlineRange;
-        }
     }
 
     public static class Topology {

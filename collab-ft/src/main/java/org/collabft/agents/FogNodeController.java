@@ -394,7 +394,8 @@ public class FogNodeController extends FogDevice {
             }
         }
         candidates.sort(Comparator.comparingDouble(ScoredNode::score).reversed());
-        int limit = Math.min(3, candidates.size());
+        int maxFogBidders = config.getBidding().getMaxFogBidders();
+        int limit = maxFogBidders > 0 ? Math.min(maxFogBidders, candidates.size()) : candidates.size();
         Set<Integer> bidderIds = candidates.stream().limit(limit).map(ScoredNode::nodeId).collect(Collectors.toSet());
         if (cloudId >= 0) {
             bidderIds.add(cloudId);

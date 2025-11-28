@@ -1,7 +1,7 @@
 simulation:
   # mode: 1 (distributed gossip+bidding) or 2 (centralized cloud scheduler)
   # Use mode 2 so the cloud is only used when fog resources are infeasible.
-  mode: 1
+  mode: 2
   # RNG seed to keep experiments reproducible
   seed: 42
   # Simulation end time in seconds
@@ -18,9 +18,9 @@ fault:
   # Prediction horizon Δ before failure occurs
   predictionLeadSeconds: 60
   # Mean time between failures (seconds) for Poisson process
-  meanTimeBetweenFailureSeconds: 600
+  meanTimeBetweenFailureSeconds: 60
   # Do not start injecting faults until this offset (seconds)
-  startDelaySeconds: 600
+  startDelaySeconds: 60
   # Time until a failed server recovers (seconds)
   recoverySeconds: 300
   # Fault type probabilities (must sum to ~1.0)
@@ -29,12 +29,8 @@ fault:
   serverCrashProb: 0.33
 
 bidding:
-  # Max neighbors (plus cloud) to request bids from
-  topK: 3
-  # Minimum score S_node required to be eligible
-  suitabilityThreshold: 0.25
-  # Timeout before abandoning a bidding round (seconds)
-  responseTimeoutSeconds: 15
+  # Maximum number of fog bidders to invite (set 0 for no cap)
+  maxFogBidders: 4
   # Cost model coefficients
   cpuUnitCost: 1.0
   memUnitCost: 0.5
@@ -53,14 +49,13 @@ sla:
 task:
   # Number of tasks each edge emits (total per edge)
   # Set to 0 to keep emitting tasks continuously for the whole simulation
-  tasksPerEdge: 0
+  tasksPerEdge: 10
   # Mean inter-arrival time (seconds) for exponential arrivals
-  meanInterArrivalSeconds: 2
-  jitterPercent: 10
+  meanInterArrivalSeconds: 200
+  jitterPercent: 20
   defaultProfile:
-    # Total work to execute (million instructions)
-    workMi: 200000
-    # Per-second CPU share needed while running (MIPS)
+    # Desired runtime and CPU share; total work is runtimeSeconds * demandMips
+    runtimeSeconds: 300
     demandMips: 800
     # RAM demand in MB
     ramMb: 256
@@ -68,15 +63,13 @@ task:
     bandwidth: 400
     # Image+state size in MB
     containerSizeMb: 150
-    # Deadline for completion (seconds)
-    deadlineSeconds: 240
   # Ranges for workload variability
-  workMiRange:
-    min: 150000
-    max: 250000
+  runtimeRange:
+    min: 240
+    max: 360
   demandMipsRange:
-    min: 600
-    max: 1200
+    min: 360
+    max: 900
   ramRange:
     min: 192
     max: 512
@@ -86,9 +79,7 @@ task:
   containerSizeRange:
     min: 100
     max: 200
-  deadlineRange:
-    min: 120
-    max: 300
+  slaRuntimeMultiplier: 1.2
 
 topology:
   fogNodes:

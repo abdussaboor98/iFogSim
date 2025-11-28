@@ -39,7 +39,7 @@ public class ContainerModule extends AppModule {
                 Math.round(profile.getContainerSizeMb()), "Xen", scheduler, Collections.emptyMap());
         this.profile = profile;
         this.deadlineSeconds = deadlineSeconds;
-        this.remainingWorkMi = profile.getWorkMi();
+        this.remainingWorkMi = profile.getDemandMips() * profile.getRuntimeSeconds();
     }
 
     public String getContainerId() {

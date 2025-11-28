@@ -29,12 +29,6 @@ fault:
   serverCrashProb: 0.33
 
 bidding:
-  # Max neighbors (plus cloud) to request bids from
-  topK: 5
-  # Minimum score S_node required to be eligible
-  suitabilityThreshold: 0.1
-  # Timeout before abandoning a bidding round (seconds)
-  responseTimeoutSeconds: 15
   # Cost model coefficients
   cpuUnitCost: 1.0
   memUnitCost: 0.5
@@ -57,9 +51,8 @@ task:
   meanInterArrivalSeconds: 45
   jitterPercent: 10
   defaultProfile:
-    # Total work to execute (million instructions)
-    workMi: 9000
-    # Per-second CPU share needed while running (MIPS)
+    # Desired runtime and CPU share; total work is runtimeSeconds * demandMips
+    runtimeSeconds: 120
     demandMips: 900
     # RAM demand in MB
     ramMb: 256
@@ -67,12 +60,10 @@ task:
     bandwidth: 400
     # Image+state size in MB
     containerSizeMb: 50
-    # Deadline for completion (seconds)
-    deadlineSeconds: 120
   # Ranges for workload variability
-  workMiRange:
-    min: 7000
-    max: 14000
+  runtimeRange:
+    min: 90
+    max: 150
   demandMipsRange:
     min: 700
     max: 1400
@@ -85,9 +76,6 @@ task:
   containerSizeRange:
     min: 30
     max: 80
-  deadlineRange:
-    min: 60
-    max: 120
 
 topology:
   fogNodes:
