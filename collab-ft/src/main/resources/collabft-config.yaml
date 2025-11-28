@@ -1,7 +1,7 @@
 simulation:
   # mode: 1 (distributed gossip+bidding) or 2 (centralized cloud scheduler)
   # Use mode 2 so the cloud is only used when fog resources are infeasible.
-  mode: 2
+  mode: 1
   # RNG seed to keep experiments reproducible
   seed: 42
   # Simulation end time in seconds

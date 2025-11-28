@@ -19,6 +19,7 @@ public class MetricsCollector {
     private final List<FaultRecord> faults = new ArrayList<>();
     private final List<FaultPredictionRecord> faultPredictions = new ArrayList<>();
     private final List<PlacementRecord> placements = new ArrayList<>();
+    private final List<CentralPlacementRecord> centralizedPlacements = new ArrayList<>();
     private final List<GossipRecord> gossips = new ArrayList<>();
     private final List<SlaRecord> sla = new ArrayList<>();
     private final List<LoadRecord> load = new ArrayList<>();
@@ -50,6 +51,11 @@ public class MetricsCollector {
     /** Record a placement decision (success or failure). */
     public void recordPlacement(String containerId, String fogName, String serverName, double time, boolean success, String reason, List<PlacementServerLoad> loads) {
         placements.add(new PlacementRecord(containerId, fogName, serverName, time, success, reason, loads));
+    }
+
+    /** Record a centralized (mode 2) placement decision. */
+    public void recordCentralPlacement(String containerId, String targetFog, String targetServer, boolean toCloud, double score, double time) {
+        centralizedPlacements.add(new CentralPlacementRecord(containerId, targetFog, targetServer, toCloud, score, time));
     }
 
     /** Record gossip/control plane overhead. */
@@ -123,6 +129,10 @@ public class MetricsCollector {
         return placements;
     }
 
+    public List<CentralPlacementRecord> getCentralizedPlacements() {
+        return centralizedPlacements;
+    }
+
     public List<GossipRecord> getGossips() {
         return gossips;
     }
@@ -178,6 +188,7 @@ public class MetricsCollector {
         Files.writeString(outDir.resolve("faults.json"), JsonUtil.toJsonLines(faults));
         Files.writeString(outDir.resolve("fault_predictions.json"), JsonUtil.toJsonLines(faultPredictions));
         Files.writeString(outDir.resolve("placements.json"), JsonUtil.toJsonLines(placements));
+        Files.writeString(outDir.resolve("placement_centralized.json"), JsonUtil.toJsonLines(centralizedPlacements));
         Files.writeString(outDir.resolve("gossip.json"), JsonUtil.toJsonLines(gossips));
         Files.writeString(outDir.resolve("sla.json"), JsonUtil.toJsonLines(sla));
         Files.writeString(outDir.resolve("economic.json"), JsonUtil.toJsonLines(economic.payments));
@@ -199,6 +210,8 @@ public class MetricsCollector {
     public record FaultPredictionRecord(String fogName, String serverName, String faultType, double predictedAt, double cpuLoad, double memLoad, double bwLoad, int containers) { }
 
     public record PlacementRecord(String containerId, String fogName, String serverName, double time, boolean success, String reason, List<PlacementServerLoad> loads) { }
+
+    public record CentralPlacementRecord(String containerId, String targetFog, String targetServer, boolean toCloud, double score, double time) { }
 
     public record PlacementServerLoad(String serverName, double cpuLoad, double memLoad, double bwLoad, int containers, boolean predictedFault) { }
 

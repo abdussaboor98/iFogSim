@@ -1,5 +1,6 @@
 package org.collabft.agents;
 
+import org.cloudbus.cloudsim.core.CloudSim;
 import org.cloudbus.cloudsim.core.SimEntity;
 import org.cloudbus.cloudsim.core.SimEvent;
 import org.collabft.events.CollabSimTags;
@@ -7,8 +8,8 @@ import org.collabft.model.ContainerModule;
 import org.collabft.model.MigrationRequest;
 import org.collabft.model.MigrationTransfer;
 import org.collabft.metrics.MetricsCollector;
+import org.collabft.metrics.MetricsRegistry;
 import org.collabft.config.SimulationConfig;
-import org.collabft.agents.FogServer;
 
 import java.util.List;
 
@@ -46,6 +47,7 @@ public class CentralCloudScheduler extends SimEntity {
     private void handleRequest(MigrationRequest request) {
         ContainerModule container = request.getContainer();
         FogNodeController bestController = null;
+        FogServer bestServer = null;
         double bestScore = -1;
         for (FogNodeController controller : controllers) {
             for (FogServer server : controller.getServers()) {
@@ -56,10 +58,18 @@ public class CentralCloudScheduler extends SimEntity {
                 if (score > bestScore) {
                     bestScore = score;
                     bestController = controller;
+                    bestServer = server;
                 }
             }
         }
         if (bestController != null) {
+            MetricsRegistry.collector().recordCentralPlacement(
+                    container.getContainerId(),
+                    bestController.getName(),
+                    bestServer != null ? bestServer.getName() : "unknown",
+                    false,
+                    bestScore,
+                    CloudSim.clock());
             container.recordLastBid(bestController.getId(), 0.0);
             send(bestController.getId(), 0, CollabSimTags.MIGRATION_START,
                     new MigrationTransfer(container, request.getOriginId(), sourceName(container, request.getOriginId()), MetricsCollector.MigrationKind.INTER_FOG,
@@ -67,6 +77,13 @@ public class CentralCloudScheduler extends SimEntity {
                             network.getInterFogLatencyMs() / 1000.0,
                             container.getMigrationTrigger()));
         } else {
+            MetricsRegistry.collector().recordCentralPlacement(
+                    container.getContainerId(),
+                    cloud.getName(),
+                    cloud.getName(),
+                    true,
+                    -1,
+                    CloudSim.clock());
             container.recordLastBid(cloud.getId(), 0.0);
             send(cloud.getId(), 0, CollabSimTags.MIGRATION_START,
                     new MigrationTransfer(container, request.getOriginId(), sourceName(container, request.getOriginId()), MetricsCollector.MigrationKind.CLOUD,

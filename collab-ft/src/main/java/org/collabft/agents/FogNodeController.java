@@ -225,6 +225,7 @@ public class FogNodeController extends FogDevice {
         if (!(ev.getData() instanceof MigrationResult result)) {
             return;
         }
+        clearPending(result.getContainer().getContainerId());
         MetricsRegistry.collector().recordMigration(
                 result.getKind(),
                 result.getContainer(),
@@ -253,6 +254,7 @@ public class FogNodeController extends FogDevice {
         if (notice.getRunVersion() != container.getRunVersion()) {
             return;
         }
+        clearPending(container.getContainerId());
         FogServer host = findServer(notice.getHostName());
         boolean hostedHere = host != null && host.getContainers().contains(container);
         if (hostedHere) {
@@ -362,6 +364,12 @@ public class FogNodeController extends FogDevice {
             return;
         }
         MetricsRegistry.collector().recordPlacement(container.getContainerId(), getName(), "none", CloudSim.clock(), false, "intra_local_infeasible", loadsBefore);
+        if (mode == 2 && schedulerId >= 0) {
+            MetricsRegistry.collector().recordDecisionLatency(container.getContainerId(), container.getMigrationStart(), CloudSim.clock(), true);
+            send(schedulerId, CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_REQUEST,
+                    new MigrationRequest(container, getId()));
+            return;
+        }
         List<ScoredNode> candidates = new ArrayList<>();
         if (config.getGossip().isEnabled()) {
             ScoringUtil.Weights weights = ScoringUtil.computeWeights(container, CloudSim.clock());
@@ -611,6 +619,10 @@ public class FogNodeController extends FogDevice {
         if (!exists) {
             pendingMigrations.add(container);
         }
+    }
+
+    private void clearPending(String containerId) {
+        pendingMigrations.removeIf(c -> c.getContainerId().equals(containerId));
     }
 
     private void retryPendingMigrations() {
