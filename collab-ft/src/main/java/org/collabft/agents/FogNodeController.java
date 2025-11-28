@@ -357,8 +357,10 @@ public class FogNodeController extends FogDevice {
         List<MetricsCollector.PlacementServerLoad> loadsBefore = snapshotServerLoads();
         FogServer target = placeContainerLocally(container);
         if (target == null) {
-            MetricsRegistry.collector().recordPlacement(container.getContainerId(), getName(), "none", CloudSim.clock(), false, "local_infeasible", loadsBefore);
-            migrateContainer(container);
+            boolean faultPresent = servers.stream().anyMatch(FogServer::isFaulted);
+            String reason = faultPresent ? "local_infeasible_fault" : "local_infeasible";
+            MetricsRegistry.collector().recordPlacement(container.getContainerId(), getName(), "none", CloudSim.clock(), false, reason, loadsBefore);
+            migrateContainer(container, reason);
             return;
         }
         MetricsRegistry.collector().recordPlacement(container.getContainerId(), getName(), target.getName(), CloudSim.clock(), true, "initial_local", snapshotServerLoads());
@@ -426,7 +428,9 @@ public class FogNodeController extends FogDevice {
                             container.getMigrationStart(), finish, 0, container.getProfile().getContainerSizeMb(), true, trigger));
             return;
         }
-        MetricsRegistry.collector().recordPlacement(container.getContainerId(), getName(), "none", CloudSim.clock(), false, "intra_local_infeasible", loadsBefore);
+        boolean faultPresent = servers.stream().anyMatch(FogServer::isFaulted);
+        String reason = faultPresent ? "intra_local_infeasible_fault" : "intra_local_infeasible";
+        MetricsRegistry.collector().recordPlacement(container.getContainerId(), getName(), "none", CloudSim.clock(), false, reason, loadsBefore);
         if (mode == 2 && schedulerId >= 0) {
             MetricsRegistry.collector().recordDecisionLatency(container.getContainerId(), container.getMigrationStart(), CloudSim.clock(), true);
             send(schedulerId, CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_REQUEST,

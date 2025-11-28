@@ -1,11 +1,11 @@
 simulation:
   # mode: 1 (distributed gossip+bidding) or 2 (centralized cloud scheduler)
   # Use mode 2 so the cloud is only used when fog resources are infeasible.
-  mode: 1
+  mode: 2
   # RNG seed to keep experiments reproducible
   seed: 42
   # Simulation end time in seconds
-  durationSeconds: 3600
+  durationSeconds: 4800
 
 gossip:
   enabled: true
@@ -16,9 +16,9 @@ gossip:
 
 fault:
   # Prediction horizon Δ before failure occurs
-  predictionLeadSeconds: 60
+  predictionLeadSeconds: 120
   # Mean time between failures (seconds) for Poisson process
-  meanTimeBetweenFailureSeconds: 60
+  meanTimeBetweenFailureSeconds: 30
   # Do not start injecting faults until this offset (seconds)
   startDelaySeconds: 60
   # Time until a failed server recovers (seconds)
@@ -56,8 +56,8 @@ task:
   # Set to 0 to keep emitting tasks continuously for the whole simulation
   tasksPerEdge: 10
   # Mean inter-arrival time (seconds) for exponential arrivals
-  meanInterArrivalSeconds: 300
-  jitterPercent: 10
+  meanInterArrivalSeconds: 400
+  jitterPercent: 20
   defaultProfile:
     # Desired runtime and CPU share; total work is runtimeSeconds * demandMips
     runtimeSeconds: 280
@@ -71,7 +71,7 @@ task:
   # Ranges for workload variability
   runtimeRange:
     min: 200
-    max: 400
+    max: 500
   demandMipsRange:
     min: 150
     max: 800
