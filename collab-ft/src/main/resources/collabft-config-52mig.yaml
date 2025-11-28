@@ -57,8 +57,10 @@ task:
   meanInterArrivalSeconds: 45
   jitterPercent: 10
   defaultProfile:
-    # Container MI demand
-    cpuMips: 900
+    # Total work to execute (million instructions)
+    workMi: 9000
+    # Per-second CPU share needed while running (MIPS)
+    demandMips: 900
     # RAM demand in MB
     ramMb: 256
     # Bandwidth demand in Mbps
@@ -68,7 +70,10 @@ task:
     # Deadline for completion (seconds)
     deadlineSeconds: 120
   # Ranges for workload variability
-  cpuMiRange:
+  workMiRange:
+    min: 7000
+    max: 14000
+  demandMipsRange:
     min: 700
     max: 1400
   ramRange:

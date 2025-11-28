@@ -288,11 +288,14 @@ public class FogNodeController extends FogDevice {
     }
 
     private void placeNewContainer(ContainerModule container) {
+        List<MetricsCollector.PlacementServerLoad> loadsBefore = snapshotServerLoads();
         FogServer target = placeContainerLocally(container);
         if (target == null) {
+            MetricsRegistry.collector().recordPlacement(container.getContainerId(), getName(), "none", CloudSim.clock(), false, "local_infeasible", loadsBefore);
             migrateContainer(container);
             return;
         }
+        MetricsRegistry.collector().recordPlacement(container.getContainerId(), getName(), target.getName(), CloudSim.clock(), true, "initial_local", snapshotServerLoads());
         container.setPaused(false);
         scheduleCompletion(target, container);
     }
@@ -319,6 +322,20 @@ public class FogNodeController extends FogDevice {
         return target;
     }
 
+    private List<MetricsCollector.PlacementServerLoad> snapshotServerLoads() {
+        List<MetricsCollector.PlacementServerLoad> loads = new ArrayList<>();
+        for (FogServer server : servers) {
+            loads.add(new MetricsCollector.PlacementServerLoad(
+                    server.getName(),
+                    server.getCpuLoad(),
+                    server.getMemLoad(),
+                    server.getBwLoad(),
+                    server.getContainers().size(),
+                    server.isPredictedToFail()));
+        }
+        return loads;
+    }
+
     private void migrateContainer(ContainerModule container) {
         migrateContainer(container, "score_fallback");
     }
@@ -330,10 +347,12 @@ public class FogNodeController extends FogDevice {
         checkpointIfHosted(container);
         // Phase 1: try intra-fog
         String fromHost = sourceHost(container);
+        List<MetricsCollector.PlacementServerLoad> loadsBefore = snapshotServerLoads();
         FogServer localTarget = placeContainerLocally(container);
         if (localTarget != null) {
             container.setPaused(false);
             container.recordLastBid(getId(), 0.0);
+            MetricsRegistry.collector().recordPlacement(container.getContainerId(), getName(), localTarget.getName(), CloudSim.clock(), true, "intra_fog_local", snapshotServerLoads());
             scheduleCompletion(localTarget, container);
             double finish = CloudSim.clock();
             send(getId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_FINISH,
@@ -341,6 +360,7 @@ public class FogNodeController extends FogDevice {
                             container.getMigrationStart(), finish, 0, container.getProfile().getContainerSizeMb(), true, trigger));
             return;
         }
+        MetricsRegistry.collector().recordPlacement(container.getContainerId(), getName(), "none", CloudSim.clock(), false, "intra_local_infeasible", loadsBefore);
         List<ScoredNode> candidates = new ArrayList<>();
         if (config.getGossip().isEnabled()) {
             ScoringUtil.Weights weights = ScoringUtil.computeWeights(container, CloudSim.clock());
@@ -428,7 +448,7 @@ public class FogNodeController extends FogDevice {
         double usedRam = servers.stream().mapToDouble(FogServer::getUsedRam).sum();
         double usedBw = servers.stream().mapToDouble(FogServer::getUsedBw).sum();
 
-        double cres = profile.getCpuMips() * config.getBidding().getCpuUnitCost()
+        double cres = profile.getDemandMips() * config.getBidding().getCpuUnitCost()
                 + profile.getRamMb() * config.getBidding().getMemUnitCost()
                 + profile.getBandwidth() * config.getBidding().getBwUnitCost();
         double lCpu = totalCpu > 0 ? usedCpu / totalCpu : 1.0;
@@ -539,7 +559,7 @@ public class FogNodeController extends FogDevice {
         boolean violated = completionLatency > container.getDeadlineSeconds();
 
         double rMax = capacity.getCpuMips() + capacity.getRamMb() + capacity.getBandwidth();
-        double rNorm = (container.getProfile().getCpuMips() + container.getProfile().getRamMb() + container.getProfile().getBandwidth()) / rMax;
+        double rNorm = (container.getProfile().getDemandMips() + container.getProfile().getRamMb() + container.getProfile().getBandwidth()) / rMax;
         double epsilon = config.getSla().getEpsilon();
         double k = config.getSla().getUrgencyK();
         double u = 1.0 / (container.getDeadlineSeconds() - finishTime + epsilon);

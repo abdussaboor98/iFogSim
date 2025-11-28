@@ -4,18 +4,29 @@ package org.collabft.model;
  * Describes the resource demand of a single containerized task.
  */
 public class ContainerProfile {
-    private double cpuMips = 500;
+    /** Total work (million instructions) the task must execute. */
+    private double workMi = 500;
+    /** Per-second CPU share required to run (MIPS). */
+    private double demandMips = 500;
     private int ramMb = 256;
     private double bandwidth = 500;
     private double containerSizeMb = 50;
     private double deadlineSeconds = 300;
 
-    public double getCpuMips() {
-        return cpuMips;
+    public double getWorkMi() {
+        return workMi;
     }
 
-    public void setCpuMips(double cpuMips) {
-        this.cpuMips = cpuMips;
+    public void setWorkMi(double workMi) {
+        this.workMi = workMi;
+    }
+
+    public double getDemandMips() {
+        return demandMips;
+    }
+
+    public void setDemandMips(double demandMips) {
+        this.demandMips = demandMips;
     }
 
     public int getRamMb() {

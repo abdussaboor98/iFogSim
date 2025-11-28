@@ -8,8 +8,6 @@
     <node id="fog-1"><data key="type">fog-node</data></node>
     <node id="fog-1-server-0"><data key="type">fog-server</data></node>
     <node id="fog-1-server-1"><data key="type">fog-server</data></node>
-    <node id="fog-1-server-2"><data key="type">fog-server</data></node>
-    <node id="fog-1-server-3"><data key="type">fog-server</data></node>
     <node id="fog-1-edge-0"><data key="type">edge-device</data></node>
     <node id="fog-1-edge-1"><data key="type">edge-device</data></node>
     <node id="fog-1-edge-2"><data key="type">edge-device</data></node>
@@ -29,7 +27,6 @@
     <node id="fog-3-server-0"><data key="type">fog-server</data></node>
     <node id="fog-3-server-1"><data key="type">fog-server</data></node>
     <node id="fog-3-server-2"><data key="type">fog-server</data></node>
-    <node id="fog-3-server-3"><data key="type">fog-server</data></node>
     <node id="fog-3-edge-0"><data key="type">edge-device</data></node>
     <node id="fog-3-edge-1"><data key="type">edge-device</data></node>
     <node id="fog-3-edge-2"><data key="type">edge-device</data></node>
@@ -52,6 +49,8 @@
     <node id="fog-5"><data key="type">fog-node</data></node>
     <node id="fog-5-server-0"><data key="type">fog-server</data></node>
     <node id="fog-5-server-1"><data key="type">fog-server</data></node>
+    <node id="fog-5-server-2"><data key="type">fog-server</data></node>
+    <node id="fog-5-server-3"><data key="type">fog-server</data></node>
     <node id="fog-5-edge-0"><data key="type">edge-device</data></node>
     <node id="fog-5-edge-1"><data key="type">edge-device</data></node>
     <node id="fog-5-edge-2"><data key="type">edge-device</data></node>
@@ -72,6 +71,8 @@
     <node id="fog-7"><data key="type">fog-node</data></node>
     <node id="fog-7-server-0"><data key="type">fog-server</data></node>
     <node id="fog-7-server-1"><data key="type">fog-server</data></node>
+    <node id="fog-7-server-2"><data key="type">fog-server</data></node>
+    <node id="fog-7-server-3"><data key="type">fog-server</data></node>
     <node id="fog-7-edge-0"><data key="type">edge-device</data></node>
     <node id="fog-7-edge-1"><data key="type">edge-device</data></node>
     <node id="fog-7-edge-2"><data key="type">edge-device</data></node>
@@ -134,8 +135,6 @@
     <edge source="fog-10" target="fog-1"><data key="bandwidth">8000.0</data><data key="latency">5.0</data></edge>
     <edge source="fog-1" target="fog-1-server-0"><data key="bandwidth">4000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-1" target="fog-1-server-1"><data key="bandwidth">4000.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-1" target="fog-1-server-2"><data key="bandwidth">4000.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-1" target="fog-1-server-3"><data key="bandwidth">4000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-1" target="fog-1-edge-0"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-1" target="fog-1-edge-1"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-1" target="fog-1-edge-2"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
@@ -153,7 +152,6 @@
     <edge source="fog-3" target="fog-3-server-0"><data key="bandwidth">5000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-3" target="fog-3-server-1"><data key="bandwidth">5000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-3" target="fog-3-server-2"><data key="bandwidth">5000.0</data><data key="latency">0.0</data></edge>
-    <edge source="fog-3" target="fog-3-server-3"><data key="bandwidth">5000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-3" target="fog-3-edge-0"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-3" target="fog-3-edge-1"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-3" target="fog-3-edge-2"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
@@ -174,6 +172,8 @@
     <edge source="fog-4" target="fog-4-edge-5"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-5" target="fog-5-server-0"><data key="bandwidth">4000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-5" target="fog-5-server-1"><data key="bandwidth">4000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-5" target="fog-5-server-2"><data key="bandwidth">4000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-5" target="fog-5-server-3"><data key="bandwidth">4000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-5" target="fog-5-edge-0"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-5" target="fog-5-edge-1"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-5" target="fog-5-edge-2"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
@@ -192,6 +192,8 @@
     <edge source="fog-6" target="fog-6-edge-5"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-7" target="fog-7-server-0"><data key="bandwidth">4000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-7" target="fog-7-server-1"><data key="bandwidth">4000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-7" target="fog-7-server-2"><data key="bandwidth">4000.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-7" target="fog-7-server-3"><data key="bandwidth">4000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-7" target="fog-7-edge-0"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-7" target="fog-7-edge-1"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-7" target="fog-7-edge-2"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>

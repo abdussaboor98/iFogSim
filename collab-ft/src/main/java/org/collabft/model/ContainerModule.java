@@ -31,15 +31,15 @@ public class ContainerModule extends AppModule {
     private double lastBidCost = 0.0;
 
     public ContainerModule(String name, String appId, int userId, ContainerProfile profile) {
-        this(name, appId, userId, profile, profile.getDeadlineSeconds(), new TupleScheduler(profile.getCpuMips(), 1));
+        this(name, appId, userId, profile, profile.getDeadlineSeconds(), new TupleScheduler(profile.getDemandMips(), 1));
     }
 
     public ContainerModule(String name, String appId, int userId, ContainerProfile profile, double deadlineSeconds, CloudletScheduler scheduler) {
-        super(FogUtils.generateEntityId(), name, appId, userId, profile.getCpuMips(), profile.getRamMb(), Math.round(profile.getBandwidth()),
+        super(FogUtils.generateEntityId(), name, appId, userId, profile.getDemandMips(), profile.getRamMb(), Math.round(profile.getBandwidth()),
                 Math.round(profile.getContainerSizeMb()), "Xen", scheduler, Collections.emptyMap());
         this.profile = profile;
         this.deadlineSeconds = deadlineSeconds;
-        this.remainingWorkMi = profile.getCpuMips();
+        this.remainingWorkMi = profile.getWorkMi();
     }
 
     public String getContainerId() {

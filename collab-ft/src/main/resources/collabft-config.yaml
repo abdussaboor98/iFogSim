@@ -5,10 +5,10 @@ simulation:
   # RNG seed to keep experiments reproducible
   seed: 42
   # Simulation end time in seconds
-  durationSeconds: 86400
+  durationSeconds: 3600
 
 gossip:
-  enabled: false
+  enabled: true
   # Period between gossip rounds (seconds)
   intervalSeconds: 10
   # Entries older than this many intervals are ignored
@@ -18,9 +18,9 @@ fault:
   # Prediction horizon Δ before failure occurs
   predictionLeadSeconds: 60
   # Mean time between failures (seconds) for Poisson process
-  meanTimeBetweenFailureSeconds: 10
+  meanTimeBetweenFailureSeconds: 600
   # Do not start injecting faults until this offset (seconds)
-  startDelaySeconds: 10
+  startDelaySeconds: 600
   # Time until a failed server recovers (seconds)
   recoverySeconds: 300
   # Fault type probabilities (must sum to ~1.0)
@@ -52,25 +52,31 @@ sla:
 
 task:
   # Number of tasks each edge emits (total per edge)
-  tasksPerEdge: 20
+  # Set to 0 to keep emitting tasks continuously for the whole simulation
+  tasksPerEdge: 0
   # Mean inter-arrival time (seconds) for exponential arrivals
-  meanInterArrivalSeconds: 15
+  meanInterArrivalSeconds: 2
   jitterPercent: 10
   defaultProfile:
-    # Container MI demand
-    cpuMips: 900
+    # Total work to execute (million instructions)
+    workMi: 200000
+    # Per-second CPU share needed while running (MIPS)
+    demandMips: 800
     # RAM demand in MB
     ramMb: 256
     # Bandwidth demand in Mbps
     bandwidth: 400
     # Image+state size in MB
-    containerSizeMb: 50
+    containerSizeMb: 150
     # Deadline for completion (seconds)
-    deadlineSeconds: 120
+    deadlineSeconds: 240
   # Ranges for workload variability
-  cpuMiRange:
-    min: 700
-    max: 1400
+  workMiRange:
+    min: 150000
+    max: 250000
+  demandMipsRange:
+    min: 600
+    max: 1200
   ramRange:
     min: 192
     max: 512
@@ -78,17 +84,17 @@ task:
     min: 200
     max: 600
   containerSizeRange:
-    min: 30
-    max: 80
+    min: 100
+    max: 200
   deadlineRange:
-    min: 60
-    max: 120
+    min: 120
+    max: 300
 
 topology:
   fogNodes:
     # Define 6 fog nodes; adjust counts or capacities as needed.
     - name: fog-1
-      servers: 4
+      servers: 2
       capacityMultiplier: 1
       serverCapacity:
         cpuMips: 2000
@@ -110,7 +116,7 @@ topology:
         downlinkBandwidth: 8000
         ratePerMips: 0.0
     - name: fog-3
-      servers: 4
+      servers: 3
       capacityMultiplier: 1
       serverCapacity:
         cpuMips: 3000
@@ -132,7 +138,7 @@ topology:
         downlinkBandwidth: 8000
         ratePerMips: 0.0
     - name: fog-5
-      servers: 2
+      servers: 4
       capacityMultiplier: 1
       serverCapacity:
         cpuMips: 2000
@@ -154,7 +160,7 @@ topology:
         downlinkBandwidth: 8000
         ratePerMips: 0.0
     - name: fog-7
-      servers: 2
+      servers: 4
       capacityMultiplier: 1
       serverCapacity:
         cpuMips: 2000

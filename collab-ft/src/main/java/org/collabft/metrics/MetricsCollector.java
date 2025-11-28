@@ -18,6 +18,7 @@ public class MetricsCollector {
     private final List<MigrationRecord> migrations = new ArrayList<>();
     private final List<FaultRecord> faults = new ArrayList<>();
     private final List<FaultPredictionRecord> faultPredictions = new ArrayList<>();
+    private final List<PlacementRecord> placements = new ArrayList<>();
     private final List<GossipRecord> gossips = new ArrayList<>();
     private final List<SlaRecord> sla = new ArrayList<>();
     private final List<LoadRecord> load = new ArrayList<>();
@@ -44,6 +45,11 @@ public class MetricsCollector {
     /** Snapshot server state when a fault is predicted. */
     public void recordFaultPrediction(String fogName, String serverName, String faultType, double predictTime, double cpuLoad, double memLoad, double bwLoad, int containers) {
         faultPredictions.add(new FaultPredictionRecord(fogName, serverName, faultType, predictTime, cpuLoad, memLoad, bwLoad, containers));
+    }
+
+    /** Record a placement decision (success or failure). */
+    public void recordPlacement(String containerId, String fogName, String serverName, double time, boolean success, String reason, List<PlacementServerLoad> loads) {
+        placements.add(new PlacementRecord(containerId, fogName, serverName, time, success, reason, loads));
     }
 
     /** Record gossip/control plane overhead. */
@@ -113,6 +119,10 @@ public class MetricsCollector {
         return faultPredictions;
     }
 
+    public List<PlacementRecord> getPlacements() {
+        return placements;
+    }
+
     public List<GossipRecord> getGossips() {
         return gossips;
     }
@@ -167,6 +177,7 @@ public class MetricsCollector {
         Files.writeString(outDir.resolve("migrations.json"), JsonUtil.toJsonLines(migrations));
         Files.writeString(outDir.resolve("faults.json"), JsonUtil.toJsonLines(faults));
         Files.writeString(outDir.resolve("fault_predictions.json"), JsonUtil.toJsonLines(faultPredictions));
+        Files.writeString(outDir.resolve("placements.json"), JsonUtil.toJsonLines(placements));
         Files.writeString(outDir.resolve("gossip.json"), JsonUtil.toJsonLines(gossips));
         Files.writeString(outDir.resolve("sla.json"), JsonUtil.toJsonLines(sla));
         Files.writeString(outDir.resolve("economic.json"), JsonUtil.toJsonLines(economic.payments));
@@ -186,6 +197,10 @@ public class MetricsCollector {
     public record FaultRecord(String serverName, String faultType, double predictedAt, double failedAt, double recoveryAt, boolean recovered) { }
 
     public record FaultPredictionRecord(String fogName, String serverName, String faultType, double predictedAt, double cpuLoad, double memLoad, double bwLoad, int containers) { }
+
+    public record PlacementRecord(String containerId, String fogName, String serverName, double time, boolean success, String reason, List<PlacementServerLoad> loads) { }
+
+    public record PlacementServerLoad(String serverName, double cpuLoad, double memLoad, double bwLoad, int containers, boolean predictedFault) { }
 
     public record GossipRecord(String sender, String receiver, double bytes, double timestamp, double cpuLoad, double memLoad, double bwLoad, boolean stale) { }
 

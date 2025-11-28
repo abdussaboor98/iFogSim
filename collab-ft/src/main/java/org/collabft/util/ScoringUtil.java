@@ -13,9 +13,9 @@ public final class ScoringUtil {
 
     public static Weights computeWeights(ContainerModule container, double nowSeconds) {
         ContainerProfile profile = container.getProfile();
-        double total = profile.getCpuMips() + profile.getRamMb() + profile.getBandwidth();
+        double total = profile.getDemandMips() + profile.getRamMb() + profile.getBandwidth();
         // p_cpu = R_cpu / (R_cpu + R_mem + R_bw); same for p_mem, p_bw
-        double pCpu = profile.getCpuMips() / total;
+        double pCpu = profile.getDemandMips() / total;
         double pMem = profile.getRamMb() / total;
         double pBw = profile.getBandwidth() / total;
 

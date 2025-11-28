@@ -62,7 +62,7 @@ public class FogServer extends FogDevice {
 
     public void addContainer(ContainerModule container) {
         containers.add(container);
-        usedCpu += container.getProfile().getCpuMips();
+        usedCpu += container.getProfile().getDemandMips();
         usedRam += container.getProfile().getRamMb();
         usedBw += container.getProfile().getBandwidth();
         container.setHostName(getName());
@@ -70,7 +70,7 @@ public class FogServer extends FogDevice {
 
     public void removeContainer(ContainerModule container) {
         containers.remove(container);
-        usedCpu = Math.max(0, usedCpu - container.getProfile().getCpuMips());
+        usedCpu = Math.max(0, usedCpu - container.getProfile().getDemandMips());
         usedRam = Math.max(0, usedRam - container.getProfile().getRamMb());
         usedBw = Math.max(0, usedBw - container.getProfile().getBandwidth());
     }

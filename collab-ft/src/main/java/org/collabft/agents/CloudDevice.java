@@ -122,7 +122,7 @@ public class CloudDevice extends FogDevice {
 
     private BidResponse buildBid(ContainerModule container) {
         ContainerProfile profile = container.getProfile();
-        double cres = profile.getCpuMips() * biddingConfig.getCpuUnitCost()
+        double cres = profile.getDemandMips() * biddingConfig.getCpuUnitCost()
                 + profile.getRamMb() * biddingConfig.getMemUnitCost()
                 + profile.getBandwidth() * biddingConfig.getBwUnitCost();
         double crisk = 0; // assume stable cloud capacity
@@ -160,7 +160,7 @@ public class CloudDevice extends FogDevice {
 
     private void addContainer(ContainerModule module) {
         hosted.add(module);
-        usedCpu += module.getProfile().getCpuMips();
+        usedCpu += module.getProfile().getDemandMips();
         usedRam += module.getProfile().getRamMb();
         usedBw += module.getProfile().getBandwidth();
         module.setHostName(getName());
@@ -168,7 +168,7 @@ public class CloudDevice extends FogDevice {
 
     private void release(ContainerModule module) {
         hosted.remove(module);
-        usedCpu -= module.getProfile().getCpuMips();
+        usedCpu -= module.getProfile().getDemandMips();
         usedRam -= module.getProfile().getRamMb();
         usedBw -= module.getProfile().getBandwidth();
     }

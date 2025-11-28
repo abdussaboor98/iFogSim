@@ -58,11 +58,17 @@ public class EdgeDevice extends FogDevice {
 
     @Override
     protected void processOtherEvent(SimEvent ev) {
-        // edges only emit tasks; no custom inbound events
+        if (ev == null || !(ev.getTag() instanceof CollabSimTags tag)) {
+            return;
+        }
+        if (tag == CollabSimTags.TASK_GENERATE) {
+            scheduleNext(0);
+        }
     }
 
     private void scheduleNext(double delay) {
-        if (sentCount >= tasksToSend) {
+        // Allow unlimited generation when tasksPerEdge <= 0
+        if (tasksToSend > 0 && sentCount >= tasksToSend) {
             return;
         }
         ContainerProfile sampled = sampleProfile();
@@ -72,7 +78,7 @@ public class EdgeDevice extends FogDevice {
         send(getParentId(), totalDelay, CollabSimTags.TASK_ARRIVAL_EVENT, new TaskProfile(sampled, CloudSim.clock() + totalDelay));
         sentCount++;
         double nextDelay = applyJitter(exponential(meanInterArrival));
-        scheduleNext(delay + nextDelay);
+        send(getId(), delay + nextDelay, CollabSimTags.TASK_GENERATE);
     }
 
     private double exponential(double mean) {
@@ -88,7 +94,8 @@ public class EdgeDevice extends FogDevice {
 
     private ContainerProfile sampleProfile() {
         ContainerProfile p = new ContainerProfile();
-        p.setCpuMips(sample(taskConfig.getCpuMiRange(), baseProfile.getCpuMips()));
+        p.setDemandMips(sample(taskConfig.getDemandMipsRange(), baseProfile.getDemandMips()));
+        p.setWorkMi(sample(taskConfig.getWorkMiRange(), baseProfile.getWorkMi()));
         p.setRamMb((int) sample(taskConfig.getRamRange(), baseProfile.getRamMb()));
         p.setBandwidth(sample(taskConfig.getBandwidthRange(), baseProfile.getBandwidth()));
         p.setContainerSizeMb(sample(taskConfig.getContainerSizeRange(), baseProfile.getContainerSizeMb()));

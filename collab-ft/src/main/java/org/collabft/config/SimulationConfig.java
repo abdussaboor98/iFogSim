@@ -298,7 +298,8 @@ public class SimulationConfig {
         private double meanInterArrivalSeconds = 120;
         private double jitterPercent = 0;
         private ContainerProfile defaultProfile = new ContainerProfile();
-        private Range cpuMiRange = new Range();
+        private Range demandMipsRange = new Range();
+        private Range workMiRange = new Range();
         private Range ramRange = new Range();
         private Range bandwidthRange = new Range();
         private Range containerSizeRange = new Range();
@@ -336,12 +337,20 @@ public class SimulationConfig {
             this.defaultProfile = defaultProfile;
         }
 
-        public Range getCpuMiRange() {
-            return cpuMiRange;
+        public Range getDemandMipsRange() {
+            return demandMipsRange;
         }
 
-        public void setCpuMiRange(Range cpuMiRange) {
-            this.cpuMiRange = cpuMiRange;
+        public void setDemandMipsRange(Range demandMipsRange) {
+            this.demandMipsRange = demandMipsRange;
+        }
+
+        public Range getWorkMiRange() {
+            return workMiRange;
+        }
+
+        public void setWorkMiRange(Range workMiRange) {
+            this.workMiRange = workMiRange;
         }
 
         public Range getRamRange() {
