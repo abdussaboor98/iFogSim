@@ -29,6 +29,7 @@ public class MetricsCollector {
     private final List<SettlementRecord> settlements = new ArrayList<>();
     private final EconomicRecord economic = new EconomicRecord();
     private final Map<String, DecisionLatency> decisionLatency = new HashMap<>();
+    private final List<Double> makespans = new ArrayList<>();
     private double simStart = 0;
     private double simFinish = 0;
 
@@ -69,6 +70,7 @@ public class MetricsCollector {
     public void recordSla(String containerId, String originatingEdge, String assignedFogNode, double arrivalTime, double completionTime, double deadlineSeconds,
                           boolean slaSuccess, double tExec, double tNet, double tSlack, double tMig, double makespan, int mode) {
         sla.add(new SlaRecord(containerId, originatingEdge, assignedFogNode, arrivalTime, completionTime, deadlineSeconds, slaSuccess, tExec, tNet, tSlack, tMig, makespan, mode));
+        makespans.add(makespan);
     }
 
     /** Record bidding payments/tokens. */
@@ -173,6 +175,10 @@ public class MetricsCollector {
         return decisionLatency;
     }
 
+    public List<Double> getMakespans() {
+        return makespans;
+    }
+
     public double getSimStart() {
         return simStart;
     }
@@ -207,7 +213,7 @@ public class MetricsCollector {
         Files.writeString(outDir.resolve("bids.csv"), JsonUtil.toCsv(bids, "time,containerId,bidderId,bidderName,claimedBw,claimedMigTime,bidValue,effectiveBid,feasible,winner,trustBefore"));
         Files.writeString(outDir.resolve("payment_log.csv"), JsonUtil.toCsv(settlements, "time,containerId,bidderId,bidderName,claimedBw,claimedMigTime,actualBw,actualMigTime,errBw,errMig,trustBefore,trustAfter,bidValue,effectiveBid,payment,slaMet"));
         Files.writeString(outDir.resolve("sla_makespan_metrics.csv"), JsonUtil.toCsv(sla,
-                "taskId,originatingEdge,assignedFogNode,arrivalTime,completionTime,deadline,slaSuccess,T_exec,T_net,T_slack,T_mig,makespan,mode"));
+                "taskId,originatingEdge,assignedFogNode,arrivalTime,completionTime,deadline,slaSuccess,T_exec,T_net,T_slack,T_mig,makespan,makespanSeconds,mode"));
     }
 
     public enum MigrationKind { INTRA_FOG, INTER_FOG, CLOUD }
@@ -338,7 +344,7 @@ public class MetricsCollector {
                     sb.append(s.containerId()).append(',').append(s.originatingEdge()).append(',').append(s.assignedFogNode()).append(',')
                             .append(s.arrivalTime()).append(',').append(s.completionTime()).append(',').append(s.deadlineSeconds()).append(',')
                             .append(s.slaSuccess()).append(',').append(s.tExec()).append(',').append(s.tNet()).append(',').append(s.tSlack()).append(',')
-                            .append(s.tMig()).append(',').append(s.makespan()).append(',').append(s.mode()).append("\n");
+                            .append(s.tMig()).append(',').append(s.makespan()).append(',').append(s.makespan()).append(',').append(s.mode()).append("\n");
                 }
             }
             return sb.toString();

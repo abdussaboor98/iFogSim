@@ -626,6 +626,7 @@ public class FogNodeController extends FogDevice {
         boolean slaMet = completionTime <= container.getDeadlineSeconds();
         container.setSlaSuccess(slaMet);
         container.setMakespan(makespan);
+        container.setCompletionTime(completionTime);
 
         BidContext context = winnerContexts.remove(container.getContainerId());
         BidEvaluation eval = context != null ? context.evaluation : null;

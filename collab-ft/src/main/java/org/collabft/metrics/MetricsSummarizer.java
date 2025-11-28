@@ -18,13 +18,14 @@ public final class MetricsSummarizer {
         Map<String, Object> summary = new HashMap<>();
 
         summary.put("migrationTotals", migrationSummary(collector));
+        summary.put("migrationReasonCounts", migrationReasonCounts(collector));
         summary.put("faultTolerance", faultSummary(collector));
         summary.put("network", networkSummary(collector));
         summary.put("sla", slaSummary(collector));
         summary.put("economic", economicSummary(collector));
         summary.put("scheduling", schedulingSummary(collector));
         summary.put("availability", availabilitySummary(collector));
-        summary.put("makespan", collector.getSimFinish() - collector.getSimStart());
+        summary.put("makespanStats", makespanSummary(collector));
         summary.put("loadImbalance", loadImbalance(collector));
 
         Files.writeString(resultsDir.resolve("summary.json"), MetricsCollector.JsonUtil.toJsonObject(summary));
@@ -49,6 +50,16 @@ public final class MetricsSummarizer {
         m.put("avgTime", avgTime);
         m.put("successRate", total == 0 ? 0 : (double) successes / total);
         return m;
+    }
+
+    private static Map<String, Object> migrationReasonCounts(MetricsCollector collector) {
+        Map<String, Long> counts = collector.getMigrations().stream()
+                .collect(java.util.stream.Collectors.groupingBy(MetricsCollector.MigrationRecord::reason, java.util.stream.Collectors.counting()));
+        Map<String, Object> result = new HashMap<>();
+        for (var entry : counts.entrySet()) {
+            result.put(entry.getKey(), entry.getValue());
+        }
+        return result;
     }
 
     private static Map<String, Object> faultSummary(MetricsCollector collector) {
@@ -81,6 +92,23 @@ public final class MetricsSummarizer {
         s.put("avgCompletionLatency", avgLatency);
         s.put("avgDeadline", avgDeadline);
         return s;
+    }
+
+    private static Map<String, Object> makespanSummary(MetricsCollector collector) {
+        Map<String, Object> m = new HashMap<>();
+        var makespans = collector.getMakespans();
+        double avg = average(makespans);
+        double min = makespans.stream().mapToDouble(Double::doubleValue).min().orElse(0);
+        double max = makespans.stream().mapToDouble(Double::doubleValue).max().orElse(0);
+        double p90 = percentile(makespans, 90);
+        double p95 = percentile(makespans, 95);
+        m.put("avg", avg);
+        m.put("min", min);
+        m.put("max", max);
+        m.put("p90", p90);
+        m.put("p95", p95);
+        m.put("count", makespans.size());
+        return m;
     }
 
     private static Map<String, Object> economicSummary(MetricsCollector collector) {
@@ -122,5 +150,34 @@ public final class MetricsSummarizer {
         l.put("stddev", Math.sqrt(variance));
         l.put("meanMigrations", mean);
         return l;
+    }
+
+    private static double average(Iterable<Double> values) {
+        double sum = 0;
+        int count = 0;
+        for (Double v : values) {
+            sum += v;
+            count++;
+        }
+        return count == 0 ? 0 : sum / count;
+    }
+
+    private static double percentile(Iterable<Double> values, double percentile) {
+        java.util.List<Double> list = new java.util.ArrayList<>();
+        for (Double v : values) {
+            list.add(v);
+        }
+        if (list.isEmpty()) {
+            return 0;
+        }
+        list.sort(Double::compareTo);
+        double rank = (percentile / 100.0) * (list.size() - 1);
+        int lower = (int) Math.floor(rank);
+        int upper = (int) Math.ceil(rank);
+        if (lower == upper) {
+            return list.get(lower);
+        }
+        double weight = rank - lower;
+        return list.get(lower) * (1 - weight) + list.get(upper) * weight;
     }
 }

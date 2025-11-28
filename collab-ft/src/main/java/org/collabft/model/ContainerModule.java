@@ -37,6 +37,7 @@ public class ContainerModule extends AppModule {
     private String originatingEdge = "";
     private boolean slaSuccess;
     private double makespan = -1;
+    private double completionTime = -1;
 
     public ContainerModule(String name, String appId, int userId, TaskProfile profile) {
         this(name, appId, userId, profile.getContainerProfile(), profile.getDeadlineTime(), profile.getArrivalTime(),
@@ -221,5 +222,13 @@ public class ContainerModule extends AppModule {
 
     public void setMakespan(double makespan) {
         this.makespan = makespan;
+    }
+
+    public double getCompletionTime() {
+        return completionTime;
+    }
+
+    public void setCompletionTime(double completionTime) {
+        this.completionTime = completionTime;
     }
 }
