@@ -101,7 +101,8 @@ public class CentralCloudScheduler extends SimEntity {
     private Optional<Placement> pickTarget(ContainerModule container) {
         double bestBid = Double.MAX_VALUE;
         Placement best = null;
-        double timeRemaining = Math.max(0, container.getDeadlineSeconds() - CloudSim.clock());
+        double now = CloudSim.clock();
+        double timeRemaining = Math.max(0, container.getDeadlineSeconds() - now);
         for (FogNodeController controller : controllers) {
             double linkBw = Math.min(controller.getCapacity().getUplinkBandwidth(), network.getInterFogBandwidthMbps());
             double linkBwMbPerSec = linkBw / 8.0;
@@ -117,6 +118,12 @@ public class CentralCloudScheduler extends SimEntity {
                     + container.getProfile().getBandwidth() / Math.max(1e-6, linkBw);
             double bidValue = migrationTime + biddingConfig.getResourceImpactK() * resourceImpact;
             for (FogServer server : controller.getServers()) {
+                double timeToFault = server.isPredictedToFail()
+                        ? Math.max(0, server.getPredictedFailureAt() - now)
+                        : Double.MAX_VALUE;
+                if (migrationTime > timeToFault) {
+                    continue;
+                }
                 double projectedCpu = (server.getUsedCpu() + container.getProfile().getDemandMips()) / Math.max(1e-6, server.getCapacity().getCpuMips() * server.getCpuFactor());
                 double projectedMem = (server.getUsedRam() + container.getProfile().getRamMb()) / Math.max(1e-6, server.getCapacity().getRamMb());
                 double projectedBw = (server.getUsedBw() + container.getProfile().getBandwidth()) / Math.max(1e-6, server.getCapacity().getBandwidth() * server.getBwFactor());
