@@ -69,7 +69,6 @@ public class CentralCloudScheduler extends SimEntity {
             double linkBw = Math.min(cloud.getCapacity().getUplinkBandwidth(), network.getFogCloudBandwidthMbps());
             double linkBwMbPerSec = linkBw / 8.0;
             double migrationTime = biddingConfig.getPauseSeconds() + container.getProfile().getContainerSizeMb() / Math.max(1e-6, linkBwMbPerSec) + biddingConfig.getResumeSeconds();
-            double timeRemaining = Math.max(0, container.getDeadlineSeconds() - CloudSim.clock());
             MetricsRegistry.collector().recordCentralPlacement(
                     container.getContainerId(),
                     cloud.getName(),
@@ -77,12 +76,6 @@ public class CentralCloudScheduler extends SimEntity {
                     true,
                     migrationTime,
                     CloudSim.clock());
-            if (migrationTime > timeRemaining) {
-                send(request.getOriginId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_FINISH,
-                        new MigrationResult(container, MetricsCollector.MigrationKind.CLOUD, sourceName(container, request.getOriginId()), cloud.getName(),
-                                CloudSim.clock(), CloudSim.clock(), 0, container.getProfile().getContainerSizeMb(), false, container.getMigrationTrigger()));
-                return;
-            }
             container.recordLastBid(cloud.getId(), migrationTime);
             send(cloud.getId(), 0, CollabSimTags.MIGRATION_START,
                     new MigrationTransfer(container, request.getOriginId(), sourceName(container, request.getOriginId()), MetricsCollector.MigrationKind.CLOUD,
