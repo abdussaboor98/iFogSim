@@ -9,6 +9,7 @@
     <node id="fog-1-server-0"><data key="type">fog-server</data></node>
     <node id="fog-1-server-1"><data key="type">fog-server</data></node>
     <node id="fog-1-server-2"><data key="type">fog-server</data></node>
+    <node id="fog-1-server-3"><data key="type">fog-server</data></node>
     <node id="fog-1-edge-0"><data key="type">edge-device</data></node>
     <node id="fog-1-edge-1"><data key="type">edge-device</data></node>
     <node id="fog-1-edge-2"><data key="type">edge-device</data></node>
@@ -135,6 +136,7 @@
     <edge source="fog-1" target="fog-1-server-0"><data key="bandwidth">3500.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-1" target="fog-1-server-1"><data key="bandwidth">3500.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-1" target="fog-1-server-2"><data key="bandwidth">3500.0</data><data key="latency">0.0</data></edge>
+    <edge source="fog-1" target="fog-1-server-3"><data key="bandwidth">3500.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-1" target="fog-1-edge-0"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-1" target="fog-1-edge-1"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>
     <edge source="fog-1" target="fog-1-edge-2"><data key="bandwidth">1000.0</data><data key="latency">0.0</data></edge>

@@ -119,6 +119,17 @@ public class ContainerModule extends AppModule {
         lastStartTime = -1;
     }
 
+    /**
+     * Reset progress to restart task from beginning (used when server crashes and work is lost).
+     */
+    public void resetProgress() {
+        double totalWorkMi = profile.getDemandMips() * profile.getRuntimeSeconds();
+        remainingWorkMi = totalWorkMi;
+        lastHostShareMips = 0;
+        expectedFinishTime = -1;
+        lastStartTime = -1;
+    }
+
     public String getHostName() {
         return hostName;
     }

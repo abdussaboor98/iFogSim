@@ -61,10 +61,8 @@ public class FaultInjector extends SimEntity {
                     send(notice.getControllerId(), 0, CollabSimTags.FAULT_EVENT, notice);
                     // wait for actual fault event to schedule next failure
                 } else {
-                    if (notice.getServer().isUnavailableForPrediction()) {
-                        scheduleNext();
-                        return;
-                    }
+                    // Actual fault event - always process it (don't check isUnavailableForPrediction)
+                    // because this fault was already scheduled when the prediction was sent
                     send(notice.getControllerId(), 0, CollabSimTags.FAULT_EVENT, notice);
                     send(notice.getServer().getId(), recoverySeconds, CollabSimTags.RECOVERY_EVENT);
                     MetricsRegistry.collector().recordFault(

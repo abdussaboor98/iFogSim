@@ -134,9 +134,22 @@ public class FogNodeController extends FogDevice {
             default -> {
             }
         }
+        // Handle containers on the faulty server
         for (ContainerModule container : new ArrayList<>(server.getContainers())) {
-            checkpointAndRemove(server, container);
-            migrateContainer(container, "fault_" + notice.getType().name().toLowerCase());
+            if (notice.getType() == FaultNotice.FaultType.SERVER_CRASH) {
+                // REALISTIC: Cannot migrate from crashed server - containers are LOST
+                // Remove container without checkpointing (work progress is lost)
+                server.removeContainer(container);
+                recordInstantLoad(server);
+                // Restart task from beginning with full work remaining
+                container.resetProgress();
+                container.setPaused(true);
+                migrateContainer(container, "fault_" + notice.getType().name().toLowerCase());
+            } else {
+                // CPU_FAILURE and BANDWIDTH_DEGRADATION: Server still accessible, can checkpoint
+                checkpointAndRemove(server, container);
+                migrateContainer(container, "fault_" + notice.getType().name().toLowerCase());
+            }
         }
     }
 
@@ -154,12 +167,13 @@ public class FogNodeController extends FogDevice {
         double projectedMem = load.memLoad() + profile.getRamMb() / Math.max(1e-6, cap.mem());
         double projectedBw = load.bwLoad() + profile.getBandwidth() / Math.max(1e-6, cap.bw());
         double timeToDeadline = Math.max(0, container.getDeadlineSeconds() - CloudSim.clock());
-        double timeToFaultRemaining = timeToNextPredictedFault();
+        // CRITICAL: Reject all bids if ANY server has a predicted fault
+        boolean hasPredictedFault = servers.stream().anyMatch(FogServer::isPredictedToFail);
         boolean serverFeasible = servers.stream().anyMatch(s -> s.residualScore(profile) > 0);
-        boolean feasible = serverFeasible
+        boolean feasible = !hasPredictedFault
+                && serverFeasible
                 && projectedCpu <= 1.0 && projectedMem <= 1.0 && projectedBw <= 1.0
-                && migrationTime <= timeToDeadline
-                && migrationTime <= timeToFaultRemaining;
+                && migrationTime <= timeToDeadline;
         double resourceImpact = resourceImpact(profile, cap, claimedBw);
         double bidValue = migrationTime + config.getBidding().getResourceImpactK() * resourceImpact;
         MetricsRegistry.collector().recordBid(container.getContainerId(), getId(), getName(), claimedBw, migrationTime, bidValue, bidValue, feasible, false, trustManager.current(getId()), CloudSim.clock());
@@ -372,6 +386,10 @@ public class FogNodeController extends FogDevice {
         double bestScore = -1;
         FogServer target = null;
         for (FogServer server : servers) {
+            // Skip servers with predicted faults - they should not accept new containers
+            if (server.isPredictedToFail()) {
+                continue;
+            }
             double score = server.residualScore(profile);
             if (score > bestScore) {
                 bestScore = score;

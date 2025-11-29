@@ -1,7 +1,7 @@
 simulation:
   mode: 1
   seed: 42
-  durationSeconds: 4800
+  durationSeconds: 3600
 
 gossip:
   enabled: true
@@ -10,7 +10,7 @@ gossip:
 
 fault:
   predictionLeadSeconds: 60          # Enough time to allow some local recovery, but not trivial
-  meanTimeBetweenFailureSeconds: 45  # Fewer overlapping faults → reduces excessive local_infeasible
+  meanTimeBetweenFailureSeconds: 60  # Fewer overlapping faults → reduces excessive local_infeasible
   startDelaySeconds: 30
   recoverySeconds: 240               # Recovery still meaningful under load
   cpuFailureProb: 0.33
@@ -24,19 +24,19 @@ bidding:
   resourceImpactK: 0.6
 
 trust:
-  enableTrust: false
+  enableTrust: true
   trustDecayFactor: 0.5
   trustRecoveryFactor: 0.05
   trustThreshold: 0.5
   tauBw: 0.2
-  tauMig: 5.0
+  tauMig: 0.5
 
 sla:
   slackRatio: 0.06                # A bit more realistic than 0.02; reduces excessive misses
   netOverheadRatio: 0.04
 
 task:
-  tasksPerEdge: 24                # Enough load but not extreme
+  tasksPerEdge: 20               # Enough load but not extreme
   meanInterArrivalSeconds: 160    # Balanced inflow; avoids 541 local-infeasible
   jitterPercent: 20
   defaultProfile:
@@ -46,7 +46,7 @@ task:
     bandwidth: 300
     containerSizeMb: 240
   runtimeRange:
-    min: 200
+    min: 240
     max: 400
   demandMipsRange:
     min: 200
@@ -65,7 +65,7 @@ task:
 topology:
   fogNodes:
     - name: fog-1
-      servers: 3
+      servers: 4
       capacityMultiplier: 1
       serverCapacity:
         cpuMips: 2000
