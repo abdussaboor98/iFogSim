@@ -17,5 +17,5 @@ out/
 .m2/
 logs/
 results/
-docs/
-~docs/*.tex
+docs/*
+!**/*.tex
