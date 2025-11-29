@@ -286,12 +286,15 @@ public class SimulationConfig {
     }
 
     public static class TrustConfig {
-        private boolean enableTrust = false;
+        private boolean enableTrust = true;
         private double trustDecayFactor = 0.5;
         private double trustRecoveryFactor = 0.05;
         private double trustThreshold = 0.5;
         private double tauBw = 0.2;
-        private double tauMig = 5.0;
+        private double tauMig = 0.5;
+        private double tauSla = 0.1;
+        private double slaSuccessBonus = 0.02;
+        private double slaViolationPenalty = 0.10;
 
         public boolean isEnableTrust() {
             return enableTrust;
@@ -339,6 +342,30 @@ public class SimulationConfig {
 
         public void setTauMig(double tauMig) {
             this.tauMig = tauMig;
+        }
+
+        public double getTauSla() {
+            return tauSla;
+        }
+
+        public void setTauSla(double tauSla) {
+            this.tauSla = tauSla;
+        }
+
+        public double getSlaSuccessBonus() {
+            return slaSuccessBonus;
+        }
+
+        public void setSlaSuccessBonus(double slaSuccessBonus) {
+            this.slaSuccessBonus = slaSuccessBonus;
+        }
+
+        public double getSlaViolationPenalty() {
+            return slaViolationPenalty;
+        }
+
+        public void setSlaViolationPenalty(double slaViolationPenalty) {
+            this.slaViolationPenalty = slaViolationPenalty;
         }
     }
 

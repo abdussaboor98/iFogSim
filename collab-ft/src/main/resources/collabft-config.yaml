@@ -28,8 +28,11 @@ trust:
   trustDecayFactor: 0.5
   trustRecoveryFactor: 0.05
   trustThreshold: 0.5
-  tauBw: 1.2
-  tauMig: 1.2
+  tauBw: 0.3
+  tauMig: 0.5
+  tauSla: 0.3
+  slaSuccessBonus: 0.02
+  slaViolationPenalty: 0.10
 
 sla:
   slackRatio: 0.06                # A bit more realistic than 0.02; reduces excessive misses

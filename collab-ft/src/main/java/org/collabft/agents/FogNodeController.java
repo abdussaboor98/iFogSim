@@ -299,12 +299,11 @@ public class FogNodeController extends FogDevice {
             double errMig = Math.abs(claimedMig - actualMigTime) / Math.max(1e-6, claimedMig);
             boolean dishonest = config.getTrust().isEnableTrust()
                     && (errBw > config.getTrust().getTauBw() || errMig > config.getTrust().getTauMig());
+            
+            // Store errors for later combined trust evaluation at task completion
             double trustAfter = context.evaluation.trustBefore();
             if (config.getTrust().isEnableTrust()) {
-                trustAfter = dishonest ? trustManager.decay(context.evaluation.response().getBidderId())
-                        : trustManager.recover(context.evaluation.response().getBidderId());
-                
-                // Record trust evaluation for all migrations with bid context
+                // Record bandwidth/migration evaluation but don't update trust yet
                 MetricsRegistry.collector().recordTrustEvaluation(
                         result.getContainer().getContainerId(),
                         context.evaluation.response().getBidderId(),
@@ -319,7 +318,7 @@ public class FogNodeController extends FogDevice {
             context.actualMigTime = actualMigTime;
             context.errBw = errBw;
             context.errMig = errMig;
-            context.trustAfter = trustAfter;
+            context.trustAfter = -1; // Will be set at task completion with combined evaluation
         }
         activeTransfers = Math.max(0, activeTransfers - 1);
         if (!result.isSuccess()) {
@@ -668,7 +667,22 @@ public class FogNodeController extends FogDevice {
         double errBw = context != null ? context.errBw : 0;
         double errMig = context != null ? context.errMig : 0;
         double trustBefore = eval != null ? eval.trustBefore() : trustManager.current(payeeId);
-        double trustAfter = context != null && context.trustAfter >= 0 ? context.trustAfter : trustBefore;
+        
+        // Combined trust evaluation: bandwidth + migration time + SLA outcome
+        double trustAfterSla = trustBefore;
+        if (config.getTrust().isEnableTrust() && payeeId >= 0 && payeeId != cloudId) {
+            double slaMargin = container.getDeadlineSeconds() - completionTime; // Positive = met with margin
+            double slaMarginRatio = slaMargin / Math.max(1e-6, container.getDeadlineSeconds());
+            
+            trustAfterSla = trustManager.evaluateAndAdjust(
+                payeeId,
+                errBw, errMig, slaMarginRatio,
+                config.getTrust().getTauBw(),
+                config.getTrust().getTauMig(),
+                config.getTrust().getTauSla(),
+                config.getTrust().getSlaSuccessBonus(),
+                config.getTrust().getSlaViolationPenalty());
+        }
 
         double payment = (payeeId >= 0 && payeeId != container.getOwnerId()) ? bidValue : 0;
         MetricsRegistry.collector().recordSla(
@@ -702,7 +716,7 @@ public class FogNodeController extends FogDevice {
                 errBw,
                 errMig,
                 trustBefore,
-                trustAfter,
+                trustAfterSla,
                 bidValue,
                 effectiveBid,
                 payment,

@@ -42,6 +42,52 @@ public class TrustManager {
         return updated;
     }
 
+    /**
+     * Evaluate all performance metrics (bandwidth, migration time, SLA) and adjust trust once.
+     * @param fogId The fog node being evaluated
+     * @param errBw Relative bandwidth error
+     * @param errMig Relative migration time error
+     * @param slaMargin How much time before/after deadline (negative = violation)
+     * @param tauBw Bandwidth error threshold
+     * @param tauMig Migration time error threshold
+     * @param tauSla SLA margin threshold (as fraction of deadline)
+     * @param successBonus Additive bonus for good performance
+     * @param violationPenalty Additive penalty for violations
+     * @return Updated trust value
+     */
+    public double evaluateAndAdjust(int fogId, double errBw, double errMig, double slaMargin, 
+                                     double tauBw, double tauMig, double tauSla,
+                                     double successBonus, double violationPenalty) {
+        if (!enabled) {
+            return current(fogId);
+        }
+        
+        boolean bwDishonest = errBw > tauBw;
+        boolean migDishonest = errMig > tauMig;
+        boolean slaDishonest = slaMargin < -tauSla; // Negative margin means violated, allow small violations
+        
+        double currentTrust = current(fogId);
+        double updated = currentTrust;
+        
+        // If any metric is dishonest, apply decay
+        if (bwDishonest || migDishonest) {
+            updated = currentTrust * decayFactor;
+        }
+        
+        // Apply SLA-based adjustment (additive, after multiplicative decay)
+        if (slaDishonest) {
+            updated = clamp(updated - violationPenalty);
+        } else {
+            // Small reward for meeting SLA (only if no bandwidth/migration violations)
+            if (!bwDishonest && !migDishonest) {
+                updated = clamp(updated + successBonus);
+            }
+        }
+        
+        trust.put(fogId, updated);
+        return updated;
+    }
+
     public boolean enabled() {
         return enabled;
     }
