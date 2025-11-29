@@ -167,11 +167,9 @@ public class FogNodeController extends FogDevice {
         double projectedMem = load.memLoad() + profile.getRamMb() / Math.max(1e-6, cap.mem());
         double projectedBw = load.bwLoad() + profile.getBandwidth() / Math.max(1e-6, cap.bw());
         double timeToDeadline = Math.max(0, container.getDeadlineSeconds() - CloudSim.clock());
-        // CRITICAL: Reject all bids if ANY server has a predicted fault
-        boolean hasPredictedFault = servers.stream().anyMatch(FogServer::isPredictedToFail);
-        boolean serverFeasible = servers.stream().anyMatch(s -> s.residualScore(profile) > 0);
-        boolean feasible = !hasPredictedFault
-                && serverFeasible
+        // Only check if we have ANY healthy server with capacity (not whether any server has predicted fault)
+        boolean serverFeasible = servers.stream().anyMatch(s -> !s.isPredictedToFail() && !s.isFaulted() && s.residualScore(profile) > 0);
+        boolean feasible = serverFeasible
                 && projectedCpu <= 1.0 && projectedMem <= 1.0 && projectedBw <= 1.0
                 && migrationTime <= timeToDeadline;
         double resourceImpact = resourceImpact(profile, cap, claimedBw);
@@ -297,14 +295,25 @@ public class FogNodeController extends FogDevice {
             double actualBw = result.getContainer().getProfile().getContainerSizeMb() / Math.max(1e-6, actualTransfer) * 8.0;
             double claimedBw = context.evaluation.response().getClaimedBandwidthMbps();
             double claimedMig = context.evaluation.response().getClaimedMigrationTimeSeconds();
-            double errBw = Math.abs(claimedBw - actualBw);
-            double errMig = Math.abs(claimedMig - actualMigTime);
+            double errBw = Math.abs(claimedBw - actualBw) / Math.max(1e-6, claimedBw);
+            double errMig = Math.abs(claimedMig - actualMigTime) / Math.max(1e-6, claimedMig);
             boolean dishonest = config.getTrust().isEnableTrust()
                     && (errBw > config.getTrust().getTauBw() || errMig > config.getTrust().getTauMig());
             double trustAfter = context.evaluation.trustBefore();
             if (config.getTrust().isEnableTrust()) {
                 trustAfter = dishonest ? trustManager.decay(context.evaluation.response().getBidderId())
                         : trustManager.recover(context.evaluation.response().getBidderId());
+                
+                // Record trust evaluation for all migrations with bid context
+                MetricsRegistry.collector().recordTrustEvaluation(
+                        result.getContainer().getContainerId(),
+                        context.evaluation.response().getBidderId(),
+                        CloudSim.getEntityName(context.evaluation.response().getBidderId()),
+                        claimedBw, actualBw, claimedMig, actualMigTime,
+                        errBw, errMig,
+                        context.evaluation.trustBefore(), trustAfter,
+                        dishonest,
+                        CloudSim.clock());
             }
             context.actualBw = actualBw;
             context.actualMigTime = actualMigTime;
@@ -490,10 +499,11 @@ public class FogNodeController extends FogDevice {
         candidates.sort(Comparator.comparingDouble(ScoredNode::score).reversed());
         int maxFogBidders = config.getBidding().getMaxFogBidders();
         int limit = maxFogBidders > 0 ? Math.min(maxFogBidders, candidates.size()) : candidates.size();
+        // Don't filter by trust here - let evaluateBid() handle trust filtering after bids come in
+        // This allows us to get bids from more nodes and apply trust as a penalty via effectiveBid
         Set<Integer> bidderIds = candidates.stream()
                 .limit(limit)
                 .map(ScoredNode::nodeId)
-                .filter(id -> trustManager.passesThreshold(id))
                 .collect(Collectors.toSet());
         if (cloudId >= 0) {
             bidderIds.add(cloudId);

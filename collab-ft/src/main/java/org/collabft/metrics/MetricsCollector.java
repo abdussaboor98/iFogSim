@@ -27,6 +27,7 @@ public class MetricsCollector {
     private final List<NetworkRecord> network = new ArrayList<>();
     private final List<BidRecord> bids = new ArrayList<>();
     private final List<SettlementRecord> settlements = new ArrayList<>();
+    private final List<TrustEvaluationRecord> trustEvaluations = new ArrayList<>();
     private final EconomicRecord economic = new EconomicRecord();
     private final Map<String, DecisionLatency> decisionLatency = new HashMap<>();
     private final List<Double> makespans = new ArrayList<>();
@@ -119,6 +120,14 @@ public class MetricsCollector {
         settlements.add(record);
     }
 
+    /** Record trust evaluation (claimed vs actual performance). */
+    public void recordTrustEvaluation(String containerId, int bidderId, String bidderName, double claimedBw, double actualBw,
+                                      double claimedMigTime, double actualMigTime, double errBw, double errMig,
+                                      double trustBefore, double trustAfter, boolean dishonest, double time) {
+        trustEvaluations.add(new TrustEvaluationRecord(containerId, bidderId, bidderName, claimedBw, actualBw,
+                claimedMigTime, actualMigTime, errBw, errMig, trustBefore, trustAfter, dishonest, time));
+    }
+
     public List<MigrationRecord> getMigrations() {
         return migrations;
     }
@@ -171,6 +180,10 @@ public class MetricsCollector {
         return settlements;
     }
 
+    public List<TrustEvaluationRecord> getTrustEvaluations() {
+        return trustEvaluations;
+    }
+
     public Map<String, DecisionLatency> getDecisionLatency() {
         return decisionLatency;
     }
@@ -192,6 +205,7 @@ public class MetricsCollector {
         network.clear();
         bids.clear();
         settlements.clear();
+        trustEvaluations.clear();
         economic.payments.clear();
         decisionLatency.clear();
         makespans.clear();
@@ -232,6 +246,7 @@ public class MetricsCollector {
         Files.writeString(outDir.resolve("resources.csv"), JsonUtil.toCsv(resources, "time,fog,server,containers,cpuLoad,memLoad,bwLoad"));
         Files.writeString(outDir.resolve("bids.csv"), JsonUtil.toCsv(bids, "time,containerId,bidderId,bidderName,claimedBw,claimedMigTime,bidValue,effectiveBid,feasible,winner,trustBefore"));
         Files.writeString(outDir.resolve("payment_log.csv"), JsonUtil.toCsv(settlements, "time,containerId,bidderId,bidderName,claimedBw,claimedMigTime,actualBw,actualMigTime,errBw,errMig,trustBefore,trustAfter,bidValue,effectiveBid,payment,slaMet"));
+        Files.writeString(outDir.resolve("trust_evaluations.csv"), JsonUtil.toCsv(trustEvaluations, "time,containerId,bidderId,bidderName,claimedBw,actualBw,claimedMigTime,actualMigTime,errBw,errMig,trustBefore,trustAfter,dishonest"));
         Files.writeString(outDir.resolve("sla_makespan_metrics.csv"), JsonUtil.toCsv(sla,
                 "taskId,originatingEdge,assignedFogNode,arrivalTime,completionTime,deadline,slaSuccess,T_exec,T_net,T_slack,T_mig,makespan,makespanSeconds,mode"));
     }
@@ -278,6 +293,10 @@ public class MetricsCollector {
                                    double actualBw, double actualMigTime, double errBw, double errMig,
                                    double trustBefore, double trustAfter, double bidValue, double effectiveBid,
                                    double payment, boolean slaMet, double time) { }
+
+    public record TrustEvaluationRecord(String containerId, int bidderId, String bidderName, double claimedBw, double actualBw,
+                                        double claimedMigTime, double actualMigTime, double errBw, double errMig,
+                                        double trustBefore, double trustAfter, boolean dishonest, double time) { }
 
     /** Minimal JSON serializer for structured metrics lines. */
     public static final class JsonUtil {
@@ -360,6 +379,10 @@ public class MetricsCollector {
                             .append(s.claimedBw()).append(',').append(s.claimedMigTime()).append(',').append(s.actualBw()).append(',').append(s.actualMigTime()).append(',')
                             .append(s.errBw()).append(',').append(s.errMig()).append(',').append(s.trustBefore()).append(',').append(s.trustAfter()).append(',')
                             .append(s.bidValue()).append(',').append(s.effectiveBid()).append(',').append(s.payment()).append(',').append(s.slaMet()).append("\n");
+                } else if (row instanceof TrustEvaluationRecord t) {
+                    sb.append(t.time()).append(',').append(t.containerId()).append(',').append(t.bidderId()).append(',').append(t.bidderName()).append(',')
+                            .append(t.claimedBw()).append(',').append(t.actualBw()).append(',').append(t.claimedMigTime()).append(',').append(t.actualMigTime()).append(',')
+                            .append(t.errBw()).append(',').append(t.errMig()).append(',').append(t.trustBefore()).append(',').append(t.trustAfter()).append(',').append(t.dishonest()).append("\n");
                 } else if (row instanceof SlaRecord s) {
                     sb.append(s.containerId()).append(',').append(s.originatingEdge()).append(',').append(s.assignedFogNode()).append(',')
                             .append(s.arrivalTime()).append(',').append(s.completionTime()).append(',').append(s.deadlineSeconds()).append(',')

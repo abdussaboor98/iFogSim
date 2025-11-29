@@ -9,7 +9,7 @@ gossip:
   stalenessThresholdIntervals: 3
 
 fault:
-  predictionLeadSeconds: 60          # Enough time to allow some local recovery, but not trivial
+  predictionLeadSeconds: 300          # Enough time to allow some local recovery, but not trivial
   meanTimeBetweenFailureSeconds: 60  # Fewer overlapping faults → reduces excessive local_infeasible
   startDelaySeconds: 30
   recoverySeconds: 240               # Recovery still meaningful under load
@@ -28,8 +28,8 @@ trust:
   trustDecayFactor: 0.5
   trustRecoveryFactor: 0.05
   trustThreshold: 0.5
-  tauBw: 0.2
-  tauMig: 0.5
+  tauBw: 1.2
+  tauMig: 1.2
 
 sla:
   slackRatio: 0.06                # A bit more realistic than 0.02; reduces excessive misses
