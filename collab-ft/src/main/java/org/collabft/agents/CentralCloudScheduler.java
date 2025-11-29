@@ -104,20 +104,20 @@ public class CentralCloudScheduler extends SimEntity {
         double now = CloudSim.clock();
         double timeRemaining = Math.max(0, container.getDeadlineSeconds() - now);
         for (FogNodeController controller : controllers) {
-            double linkBw = Math.min(controller.getCapacity().getUplinkBandwidth(), network.getInterFogBandwidthMbps());
-            double linkBwMbPerSec = linkBw / 8.0;
-            double migrationTime = biddingConfig.getPauseSeconds()
-                    + container.getProfile().getContainerSizeMb() / Math.max(1e-6, linkBwMbPerSec)
-                    + biddingConfig.getResumeSeconds();
-            if (migrationTime > timeRemaining) {
-                continue;
-            }
             NodeCapacity cap = capacity(controller);
             double resourceImpact = container.getProfile().getDemandMips() / Math.max(1e-6, cap.cpu())
-                    + container.getProfile().getRamMb() / Math.max(1e-6, cap.mem())
-                    + container.getProfile().getBandwidth() / Math.max(1e-6, linkBw);
-            double bidValue = migrationTime + biddingConfig.getResourceImpactK() * resourceImpact;
+                    + container.getProfile().getRamMb() / Math.max(1e-6, cap.mem());
             for (FogServer server : controller.getServers()) {
+                double linkBw = Math.min(controller.getCapacity().getUplinkBandwidth() * server.getBwFactor(), network.getInterFogBandwidthMbps());
+                double linkBwMbPerSec = linkBw / 8.0;
+                double migrationTime = biddingConfig.getPauseSeconds()
+                        + container.getProfile().getContainerSizeMb() / Math.max(1e-6, linkBwMbPerSec)
+                        + biddingConfig.getResumeSeconds();
+                if (migrationTime > timeRemaining) {
+                    continue;
+                }
+                double serverImpact = resourceImpact + container.getProfile().getBandwidth() / Math.max(1e-6, linkBw);
+                double bidValue = migrationTime + biddingConfig.getResourceImpactK() * serverImpact;
                 double timeToFault = server.isPredictedToFail()
                         ? Math.max(0, server.getPredictedFailureAt() - now)
                         : Double.MAX_VALUE;
