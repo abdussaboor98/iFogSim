@@ -33,19 +33,51 @@
 
 \section{System Configuration}
 
-\subsection{Key Parameters}
+This section describes the experimental setup shared across both Mode 1 (proposed decentralized system) and Mode 2 (centralized baseline), with mode-specific differences highlighted.
 
-The system is configured with the following parameters from \texttt{collabft-config.yaml}:
+\subsection{Mode 1 Configuration (Proposed System)}
+
+Mode 1 is configured with the following parameters from \texttt{collabft-config.yaml}:
 
 \begin{itemize}
-    \item \textbf{Mode}: 1 (Decentralized with gossip)
+    \item \textbf{Mode}: 1 (Decentralized with gossip and trust)
     \item \textbf{Simulation Duration}: 3600 seconds (60 minutes)
     \item \textbf{Gossip Interval}: 7 seconds
     \item \textbf{Fault Prediction Lead Time}: 60 seconds
     \item \textbf{Mean Time Between Failures (MTBF)}: 60 seconds
     \item \textbf{Recovery Time}: 240 seconds
+    \item \textbf{Trust System}: Enabled with three-dimensional evaluation
+    \item \textbf{Decision Making}: Distributed bid-based selection at each fog node
     \item \textbf{Topology}: 10 fog nodes with 3-4 servers each, 6 edge devices per fog node
 \end{itemize}
+
+\subsection{Mode 2 Configuration (Baseline System)}
+
+Mode 2 uses centralized scheduling without trust mechanisms:
+
+\begin{itemize}
+    \item \textbf{Mode}: 2 (Centralized without gossip or trust)
+    \item \textbf{Simulation Duration}: 3600 seconds (60 minutes)
+    \item \textbf{Gossip Protocol}: Disabled (centralized scheduler has global view)
+    \item \textbf{Fault Prediction Lead Time}: 300 seconds (5x longer to compensate for centralized latency)
+    \item \textbf{Mean Time Between Failures (MTBF)}: 60 seconds
+    \item \textbf{Recovery Time}: 240 seconds
+    \item \textbf{Trust System}: Disabled (all nodes treated equally)
+    \item \textbf{Decision Making}: Centralized scheduler with complete global state
+    \item \textbf{Topology}: Identical to Mode 1 (10 fog nodes, 3-4 servers each, 6 edge devices per node)
+\end{itemize}
+
+\textbf{Key Differences}:
+\begin{itemize}
+    \item \textbf{Lead Time}: Mode 2 uses 300s vs Mode 1's 60s to account for centralized decision latency
+    \item \textbf{Coordination}: Mode 2 eliminates gossip overhead but requires all requests go through central scheduler
+    \item \textbf{Accountability}: Mode 2 has no trust mechanism, allowing dishonest resource reporting without consequence
+    \item \textbf{Failure Mode}: Mode 2 has single point of failure (centralized scheduler); Mode 1 is fully decentralized
+\end{itemize}
+
+\subsection{Common Configuration Parameters}
+
+Both modes share the following configuration:
 
 \subsection{Fault Distribution}
 
@@ -310,7 +342,7 @@ This strict policy ensures:
 
 \section{Local Placement Decision}
 
-When a task arrives at fog node \$i\$:
+When a task arrives at fog node $i$:
 
 \subsection{Server Selection Algorithm}
 
@@ -708,11 +740,11 @@ Trust is updated once per task completion, incorporating all three metrics:
 \begin{algorithm}[H]
 \caption{Combined Trust Evaluation}
 \begin{algorithmic}[1]
-\Require $e_{bw}$, $e_{mig}$, $m_{sla}$: Performance metrics
-\Require $\tau_{bw}$, $\tau_{mig}$, $\tau_{sla}$: Error thresholds
-\Require $\delta_{decay} = 0.5$: Decay factor
-\Require $\beta_{success} = 0.02$: SLA success bonus
-\Require $\beta_{violation} = 0.10$: SLA violation penalty
+\Require Performance metrics: $e_{bw}$, $e_{mig}$, $m_{sla}$
+\Require Error thresholds: $\tau_{bw}$, $\tau_{mig}$, $\tau_{sla}$
+\Require Decay factor: $\delta_{decay} = 0.5$
+\Require SLA success bonus: $\beta_{success} = 0.02$
+\Require SLA violation penalty: $\beta_{violation} = 0.10$
 \Ensure Updated trust value
 \State $d_{bw} \gets (e_{bw} > \tau_{bw})$
 \State $d_{mig} \gets (e_{mig} > \tau_{mig})$
@@ -1008,7 +1040,7 @@ This section presents the formal algorithms underlying the fault tolerance mecha
 \begin{algorithm}[H]
 \caption{Fault Prediction and Injection}
 \begin{algorithmic}[1]
-\Require $\lambda_{MTBF}$: Mean Time Between Failures, $T_{pred}$: Prediction lead time, $T_{recovery}$: Recovery duration
+\Require Mean time between failures $\lambda_{MTBF}$, prediction lead time $T_{pred}$, recovery duration $T_{recovery}$
 \Ensure Fault events generated with predictions
 \State $t \gets 0$ \Comment{Current simulation time}
 \State $faultQueue \gets \emptyset$ \Comment{Priority queue of scheduled faults}
@@ -1034,7 +1066,7 @@ This section presents the formal algorithms underlying the fault tolerance mecha
 \begin{algorithm}[H]
 \caption{Handle Fault Prediction Event}
 \begin{algorithmic}[1]
-\Require $server$: Target server, $faultType$: Predicted fault type, $t_{fault}$: Predicted fault time
+\Require Target server $server$, predicted fault type $faultType$, predicted fault time $t_{fault}$
 \Ensure Server marked for prevention, containers triggered for migration
 \State $server.\text{markPredictedFailure}(t_{fault}, faultType)$
 \State $containers \gets server.\text{getHostedContainers}()$
@@ -1050,7 +1082,7 @@ This section presents the formal algorithms underlying the fault tolerance mecha
 \begin{algorithm}[H]
 \caption{Handle Migration Request with Fault Prevention}
 \begin{algorithmic}[1]
-\Require $container$: Container to migrate, $bids$: Set of received bids from fog nodes
+\Require Container to migrate $container$, set of received bids $bids$
 \Ensure Container migrated to safe destination or remains in place
 \State $validBids \gets \emptyset$
 \For{each $bid \in bids$}
@@ -1079,7 +1111,7 @@ This section presents the formal algorithms underlying the fault tolerance mecha
 \begin{algorithm}[H]
 \caption{Select Local Server for Container Placement}
 \begin{algorithmic}[1]
-\Require $container$: Container to place, $servers$: Set of local servers
+\Require Container to place $container$, set of local servers $servers$
 \Ensure Container placed on safe server or placement fails
 \State $candidateServers \gets \emptyset$
 \For{each $server \in servers$}
@@ -1106,7 +1138,7 @@ This section presents the formal algorithms underlying the fault tolerance mecha
 \begin{algorithm}[H]
 \caption{Handle Fault Occurrence Event}
 \begin{algorithmic}[1]
-\Require $server$: Faulted server, $faultType$: Type of fault
+\Require Faulted server $server$, fault type $faultType$
 \Ensure Server capacity degraded or crashed, containers handled appropriately
 \State $containers \gets server.\text{getHostedContainers}()$
 \If{$faultType = \text{SERVER\_CRASH}$}
@@ -1141,7 +1173,7 @@ This section presents the formal algorithms underlying the fault tolerance mecha
 \begin{algorithm}[H]
 \caption{Gossip-Based State Synchronization}
 \begin{algorithmic}[1]
-\Require $T_{gossip}$: Gossip interval (7 seconds), $fogNodes$: Set of all fog nodes
+\Require Gossip interval $T_{gossip}$ (7 seconds) and set of fog nodes $fogNodes$
 \Ensure Distributed state knowledge across fog nodes
 \While{simulation is running}
     \State $t_{next\_gossip} \gets t + T_{gossip}$
@@ -1165,7 +1197,7 @@ This section presents the formal algorithms underlying the fault tolerance mecha
 \begin{algorithm}[H]
 \caption{Generate Bid for Container Placement}
 \begin{algorithmic}[1]
-\Require $container$: Container request, $fogNode$: Current fog node
+\Require Container request $container$ and current fog node $fogNode$
 \Ensure Bid generated with cost reflecting resource availability and trust
 \State $servers \gets fogNode.\text{getServers}()$
 \State $hasFault \gets \exists s \in servers : s.\text{isPredictedToFail}()$
@@ -1185,6 +1217,372 @@ This section presents the formal algorithms underlying the fault tolerance mecha
 \State \Return $\text{Bid}(cost = finalCost, fogNode, timestamp)$
 \end{algorithmic}
 \end{algorithm}
+
+\subsection{Algorithm 8: Trust Evaluation at Migration Completion}
+
+\begin{algorithm}[H]
+\caption{Evaluate Trust After Migration}
+\begin{algorithmic}[1]
+\Require Migrated container $container$ and winning fog node $bidder$
+\Require Claimed bandwidth $B_{claimed}$ and claimed migration time $T_{mig,claimed}$ from the bid
+\Require Actual migration start time $T_{start}$ and finish time $T_{finish}$
+\Require Container size in MB $S_{container}$
+\Ensure Trust metrics recorded for later evaluation
+\State \Comment{Measure actual performance}
+\State $T_{transfer} \gets T_{finish} - T_{start}$
+\State $B_{actual} \gets \frac{S_{container}}{T_{transfer}} \times 8$ \Comment{Convert to Mbps}
+\State $T_{mig,actual} \gets t_{pause} + T_{transfer} + t_{resume}$
+\State
+\State \Comment{Calculate relative errors}
+\State $e_{bw} \gets \frac{|B_{claimed} - B_{actual}|}{\max(10^{-6}, B_{claimed})}$
+\State $e_{mig} \gets \frac{|T_{mig,claimed} - T_{mig,actual}|}{\max(10^{-6}, T_{mig,claimed})}$
+\State
+\State \Comment{Detect dishonesty}
+\State $d_{bw} \gets (e_{bw} > \tau_{bw})$ \Comment{$\tau_{bw} = 0.3$}
+\State $d_{mig} \gets (e_{mig} > \tau_{mig})$ \Comment{$\tau_{mig} = 0.5$}
+\State
+\State \Comment{Store for combined evaluation at task completion}
+\State $\text{storeMigrationMetrics}(container, e_{bw}, e_{mig}, d_{bw}, d_{mig})$
+\State
+% \State \Comment{Log to trust_evaluations.csv}
+\State $\text{recordTrustEvaluation}(container, bidder, B_{claimed}, B_{actual}, T_{mig,claimed}, T_{mig,actual}, e_{bw}, e_{mig})$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Algorithm 9: Combined Trust Update at Task Completion}
+
+\begin{algorithm}[H]
+\caption{Update Trust After Task Completion}
+\begin{algorithmic}[1]
+\Require Completed container, fog node $executor$ that executed the task
+\Require Actual completion time $T_{complete}$ and SLA deadline $D_{sla}$
+\Require Migration errors $e_{bw}$, $e_{mig}$ from Algorithm 8
+\Require Error thresholds $\tau_{bw} = 0.3$, $\tau_{mig} = 0.5$, $\tau_{sla} = 0.1$
+\Require Trust decay factor $\delta_{decay} = 0.5$
+\Require SLA adjustment factors $\beta_{success} = 0.02$, $\beta_{violation} = 0.10$
+\Ensure Trust updated combining all three metrics
+\State \Comment{Calculate SLA margin}
+\State $M_{sla} \gets D_{sla} - T_{complete}$
+\State $m_{sla} \gets \frac{M_{sla}}{\max(10^{-6}, D_{sla})}$ \Comment{Normalized margin}
+\State
+\State \Comment{Detect dishonesty across all dimensions}
+\State $d_{bw} \gets (e_{bw} > \tau_{bw})$
+\State $d_{mig} \gets (e_{mig} > \tau_{mig})$
+\State $d_{sla} \gets (m_{sla} < -\tau_{sla})$ \Comment{Negative = violation}
+\State
+\State \Comment{Get current trust}
+\State $t_{current} \gets \text{trust}(executor)$
+\State $t_{updated} \gets t_{current}$
+\State
+\State \Comment{Phase 1: Multiplicative penalty for bandwidth/migration lies}
+\If{$d_{bw}$ \textbf{or} $d_{mig}$}
+    \State $t_{updated} \gets t_{current} \times \delta_{decay}$ \Comment{50\% decay}
+\EndIf
+\State
+\State \Comment{Phase 2: Additive adjustment for SLA performance}
+\If{$d_{sla}$}
+    \State $t_{updated} \gets \max(0, t_{updated} - \beta_{violation})$ \Comment{-10\% penalty}
+\ElsIf{$\neg d_{bw}$ \textbf{and} $\neg d_{mig}$ \textbf{and} $\neg d_{sla}$}
+    \State $t_{updated} \gets \min(1, t_{updated} + \beta_{success})$ \Comment{+2\% reward}
+\EndIf
+\State
+\State \Comment{Update trust table}
+\State $\text{trust}(executor) \gets t_{updated}$
+\State
+\State \Comment{Log trust change}
+\State $\text{recordTrustEvaluation}(container, executor, m_{sla}, t_{current}, t_{updated}, d_{sla})$
+\State \Return $t_{updated}$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Algorithm 10: Trust-Aware Winner Selection}
+
+\begin{algorithm}[H]
+\caption{Select Winning Bid with Trust Consideration}
+\begin{algorithmic}[1]
+\Require Set of bid responses $bids$ and container to place $container$
+\Require Minimum trust threshold $\theta_{trust} = 0.5$
+\Ensure Winner selected or fallback to cloud
+\State $validBids \gets \emptyset$
+\State
+\State \Comment{Filter and evaluate bids}
+\For{each $bid \in bids$}
+    \State $bidder \gets bid.\text{getBidderId}()$
+    \State $t \gets \text{trust}(bidder)$
+    \State
+    \State \Comment{Hard threshold: reject low-trust nodes}
+    \If{$t < \theta_{trust}$}
+        \State $\text{logRejection}(bid, \text{``TRUST\_BELOW\_THRESHOLD''})$
+        \State \textbf{continue}
+    \EndIf
+    \State
+    \State \Comment{Check feasibility}
+    \If{$\neg bid.\text{isFeasible}()$}
+        \State \textbf{continue}
+    \EndIf
+    \State
+    \State \Comment{Calculate effective bid with trust penalty}
+    \State $\text{effectiveBid} \gets \frac{bid.\text{getValue}()}{\max(10^{-6}, t)}$
+    \State $evaluation \gets \text{createEvaluation}(bid, \text{effectiveBid}, t)$
+    \State $validBids \gets validBids \cup \{evaluation\}$
+\EndFor
+\State
+\State \Comment{Select winner using lexicographic ordering}
+\If{$validBids \neq \emptyset$}
+    \State $winner \gets \arg\min_{eval \in validBids} \{\text{effectiveBid}, -\text{headroom}, \text{latency}\}$
+    \State \Return $winner$
+\Else
+    \State \Comment{Fallback to cloud}
+    \State $cloudBid \gets \text{createCloudBid}(container)$
+    \State \Return $cloudBid$
+\EndIf
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Algorithm 11: Trust-Based Recovery Analysis}
+
+\begin{algorithm}[H]
+\caption{Compute Recovery Time from Low Trust}
+\begin{algorithmic}[1]
+\Require Current trust value $t_{current}$
+\Require Target trust threshold $\theta_{trust} = 0.5$
+\Require Recovery increment per honest task $\beta_{success} = 0.02$
+\Ensure Number of honest tasks required to reach threshold
+\If{$t_{current} \geq \theta_{trust}$}
+    \State \Return 0 \Comment{Already above threshold}
+\EndIf
+\State
+\State $deficit \gets \theta_{trust} - t_{current}$
+\State $tasksRequired \gets \lceil \frac{deficit}{\beta_{success}} \rceil$
+\State
+\State \Return $tasksRequired$
+\end{algorithmic}
+\end{algorithm}
+
+\textbf{Example Recovery Scenarios}:
+\begin{itemize}
+    \item From $t = 0.48$: $\lceil \frac{0.02}{0.02} \rceil = 1$ task
+    \item From $t = 0.40$: $\lceil \frac{0.10}{0.02} \rceil = 5$ tasks
+    \item From $t = 0.25$: $\lceil \frac{0.25}{0.02} \rceil = 13$ tasks
+\end{itemize}
+
+\section{Mode 2: Baseline System (Centralized Without Trust)}
+
+Mode 2 represents the baseline system against which the proposed Mode 1 approach is compared. It implements centralized scheduling without trust mechanisms, serving as a control for evaluating the benefits of decentralized, trust-based decision-making.
+
+\subsection{Mode 2 Architecture}
+
+Mode 2 uses a centralized scheduler with the following characteristics:
+
+\subsubsection{Centralized Decision Making}
+
+All placement and migration decisions are made by a single central scheduler (typically co-located with the cloud). Fog nodes send placement requests to the centralized scheduler, which has global visibility of all fog resources and makes decisions based on complete system state. This eliminates the need for gossip protocols but creates a single point of failure and potential bottleneck.
+
+\subsubsection{No Trust Mechanism}
+
+Mode 2 operates without any trust or reputation system. All fog nodes are treated equally regardless of their historical performance. Winner selection is based purely on immediate resource availability and cost, without considering past reliability or honesty in reporting metrics. Nodes can claim arbitrary bandwidth and migration times without consequence, as there is no mechanism to verify claims or penalize dishonest reporting.
+
+\subsubsection{Global State Visibility}
+
+The centralized scheduler maintains complete, real-time knowledge of:
+\begin{itemize}
+    \item Resource availability (CPU, memory, bandwidth) at all fog nodes
+    \item Current container placements across the fog layer
+    \item Predicted fault states for all servers
+    \item Network topology and latencies
+\end{itemize}
+
+This perfect information assumption provides an upper bound on decision quality but is unrealistic for large-scale, geographically distributed fog deployments.
+
+\subsection{Mode 2 Experimental Results}
+
+Results from \texttt{logs/mode-2/summary.json}:
+
+\subsubsection{Performance Metrics}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Metric} & \textbf{Value} \\ \midrule
+Total Tasks Completed & 554 \\
+SLA Violations & 169 (30.51\%) \\
+Average Makespan & 451.81 seconds \\
+Average Completion Time & 451.81 seconds \\
+Average Deadline & 1424.01 seconds \\
+P90 Makespan & 1337.33 seconds \\
+P95 Makespan & 1707.22 seconds \\ \bottomrule
+\end{tabular}
+\caption{Mode 2 Performance Metrics}
+\label{tab:mode2-performance}
+\end{table}
+
+\subsubsection{Fault Tolerance}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Metric} & \textbf{Value} \\ \midrule
+Faults Injected & 777 \\
+Recovered & 777 (100\%) \\
+Availability Ratio & 1.0 \\
+Average Lead Time & 300 seconds \\ \bottomrule
+\end{tabular}
+\caption{Mode 2 Fault Tolerance Metrics}
+\label{tab:mode2-faults}
+\end{table}
+
+\textbf{Note}: Mode 2 uses a longer fault prediction lead time (300 seconds vs 60 seconds in Mode 1) to compensate for centralized decision latency and potential communication delays with the centralized scheduler.
+
+\subsubsection{Migration Statistics}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lrr@{}}
+\toprule
+\textbf{Type} & \textbf{Count} & \textbf{Percentage} \\ \midrule
+Intra-Fog & 161 & 9.3\% \\
+Inter-Fog & 1,341 & 77.4\% \\
+Cloud & 231 & 13.3\% \\
+\midrule
+Total Migrations & 1,733 & 100\% \\ \midrule
+Success Rate & \multicolumn{2}{c}{76.51\%} \\
+Avg Migration Time & \multicolumn{2}{c}{3.19 seconds} \\ \bottomrule
+\end{tabular}
+\caption{Mode 2 Migration Statistics}
+\label{tab:mode2-migrations}
+\end{table}
+
+\textbf{Analysis}: Mode 2 exhibits significantly higher migration counts (1,733 vs 683 in Mode 1) due to centralized decision-making triggering more conservative, preventive migrations. The lower intra-fog migration percentage (9.3\% vs 14.2\%) suggests less efficient local resource utilization. The migration success rate of 76.51\% is notably lower than Mode 1's 93.27\%, indicating that centralized decisions made with stale information lead to more placement failures.
+
+\subsubsection{Migration Reasons}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Reason} & \textbf{Count} \\ \midrule
+\multicolumn{2}{c}{\textit{Proactive (Before Fault)}} \\
+Local Infeasible (Fault) & 743 \\
+Bandwidth Degradation Predicted & 385 \\
+Server Crash Predicted & 219 \\
+CPU Failure Predicted & 310 \\
+\midrule
+\multicolumn{2}{c}{\textit{Reactive (After Fault)}} \\
+Bandwidth Degradation & 21 \\
+Server Crash & 26 \\
+CPU Failure & 29 \\
+\midrule
+\textbf{Proactive Rate} & \textbf{95.6\%} \\ \bottomrule
+\end{tabular}
+\caption{Mode 2 Migration Reason Distribution}
+\label{tab:mode2-reasons}
+\end{table}
+
+\textbf{Analysis}: While Mode 2 achieves a high proactive rate (95.6\%), it experiences more reactive migrations (76 total, 4.4\%) compared to Mode 1 (15 total, 1.9\%). This suggests that centralized scheduling with longer lead times is less effective at preventing post-fault migrations than decentralized, gossip-based coordination with shorter lead times.
+
+\subsubsection{Network Overhead}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Metric} & \textbf{Value} \\ \midrule
+Gossip Messages & 0 \\
+Gossip Bandwidth & 0.0 MB \\ \bottomrule
+\end{tabular}
+\caption{Mode 2 Network Overhead (No Gossip)}
+\label{tab:mode2-network}
+\end{table}
+
+Mode 2 eliminates gossip overhead entirely through centralized coordination. However, this does not account for the request/response traffic between fog nodes and the central scheduler, which would be significant in a real deployment.
+
+\subsubsection{Economic Metrics}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Metric} & \textbf{Value} \\ \midrule
+Total Payments & 6,266.15 \\
+Payments Count & 554 \\
+Avg Payment per Task & 11.31 \\ \bottomrule
+\end{tabular}
+\caption{Mode 2 Economic Metrics}
+\label{tab:mode2-economic}
+\end{table}
+
+\textbf{Analysis}: The average payment per task in Mode 2 (11.31) is significantly higher than Mode 1 (7.23), representing a 56\% cost increase. This reflects the inefficiency of centralized decision-making without trust: nodes are not incentivized to report honestly, leading to suboptimal placements and higher costs.
+
+\subsubsection{Load Imbalance}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Metric} & \textbf{Value} \\ \midrule
+Mean Migrations per Node & 36.10 \\
+Standard Deviation & 22.02 \\
+Coefficient of Variation & 0.61 \\ \bottomrule
+\end{tabular}
+\caption{Mode 2 Load Distribution}
+\label{tab:mode2-load}
+\end{table}
+
+The high standard deviation (22.02) and coefficient of variation (0.61) indicate significant load imbalance across fog nodes, suggesting that centralized scheduling without distributed state awareness concentrates load unevenly.
+
+\subsection{Mode 2 Limitations}
+
+\subsubsection{Single Point of Failure}
+
+The centralized scheduler represents a critical single point of failure. If the scheduler becomes unavailable, no placement or migration decisions can be made, effectively halting the entire system. This vulnerability is eliminated in Mode 1's decentralized architecture.
+
+\subsubsection{Scalability Bottleneck}
+
+As the number of fog nodes and tasks increases, the centralized scheduler becomes a bottleneck:
+\begin{itemize}
+    \item All placement requests must be queued and processed sequentially
+    \item Decision latency increases with system size
+    \item Network traffic concentrates at the scheduler
+    \item State synchronization overhead grows quadratically
+\end{itemize}
+
+\subsubsection{No Accountability}
+
+Without trust mechanisms, fog nodes have no incentive to report metrics honestly or perform reliably. This leads to:
+\begin{itemize}
+    \item Over-claiming of available resources to win more bids
+    \item Under-reporting of actual costs and latencies
+    \item No penalties for poor performance or SLA violations
+    \item Degraded system-wide reliability over time
+\end{itemize}
+
+\subsubsection{Stale Information}
+
+Despite having "global" visibility, the centralized scheduler operates on potentially stale information:
+\begin{itemize}
+    \item Communication delays between fog nodes and scheduler
+    \item State changes during decision-making process
+    \item Race conditions between placement decisions and actual resource availability
+    \item Higher migration failure rate (76.51\% success vs 93.27\% in Mode 1)
+\end{itemize}
+
+\subsubsection{Higher Task Completion Costs}
+
+The 56\% higher average cost per task in Mode 2 demonstrates the economic inefficiency of systems without trust-based reputation mechanisms. Without accountability, the market fails to converge toward optimal resource allocation.
+
+\subsection{Mode 2 as a Baseline}
+
+Mode 2 serves as an important baseline for evaluating Mode 1 because:
+\begin{enumerate}
+    \item \textbf{Optimistic Assumptions}: It assumes perfect global knowledge, providing an upper bound on centralized performance
+    \item \textbf{No Gossip Overhead}: Eliminates network overhead for fair comparison of decision quality
+    \item \textbf{Controlled Comparison}: Isolates the impact of trust mechanisms by using identical fault models and workloads
+    \item \textbf{Standard Approach}: Represents the current state-of-the-art in fog computing scheduling
+\end{enumerate}
+
+The comparison between Mode 1 and Mode 2 demonstrates that decentralized, trust-based coordination can outperform centralized scheduling even when the centralized approach has perfect information, highlighting the value of reputation systems and distributed decision-making in fog computing environments.
 
 \section{Mode 1 Results Summary}
 
@@ -1316,10 +1714,10 @@ Despite proactive prevention, a small number (\textless 1\\%) of \texttt{fault\_
 
 \textbf{Scenario}: Migration completes just before prediction arrives
 \begin{enumerate}
-    \item \$t=100\$: Bid accepted, migration initiated
-    \item \$t=101\$: Container placed on destination server
-    \item \$t=102\$: Fault prediction arrives, server marked
-    \item \$t=162\$: Fault hits, container still running
+    \item $t=100$: Bid accepted, migration initiated
+    \item $t=101$: Container placed on destination server
+    \item $t=102$: Fault prediction arrives, server marked
+    \item $t=162$: Fault hits, container still running
     \item \textbf{Result}: Container migrated with \texttt{fault\_*} reason
 \end{enumerate}
 
