@@ -104,7 +104,7 @@ topology:
         ratePerMips: 0.0
     - name: fog-3
       servers: 4
-      edgeDevices: 6
+      edgeDevices: 8
       capacityMultiplier: 1
       serverCapacity:
         cpuMips: 4000
@@ -116,7 +116,7 @@ topology:
         ratePerMips: 0.0
     - name: fog-4
       servers: 4
-      edgeDevices: 7
+      edgeDevices: 8
       capacityMultiplier: 1
       serverCapacity:
         cpuMips: 2000
