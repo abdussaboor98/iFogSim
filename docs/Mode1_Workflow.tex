@@ -122,18 +122,18 @@ Network latencies and bandwidth characteristics:
 Each edge device generates tasks with exponential inter-arrival times:
 
 \begin{equation}
-    \text{InterArrival} = -\bar{\tau} \cdot \ln(1 - U), \quad U \sim \text{Uniform}(0,1), \quad \bar{\tau} = 160 \text{ seconds}
+    T_{\text{inter}} = -\bar{\tau} \cdot \ln(1 - U), \quad U \sim \mathcal{U}(0,1), \quad \bar{\tau} = 160 \text{ seconds}
 \end{equation}
 
 \subsection{Task Parameters}
 
 Task parameters are sampled from uniform distributions:
 \begin{align}
-    R_{cpu} &\sim \text{Uniform}[200, 600] \text{ MIPS} \\
-    T_{exec} &\sim \text{Uniform}[200, 400] \text{ seconds} \\
-    R_{mem} &\sim \text{Uniform}[128, 512] \text{ MB} \\
-    R_{bw} &\sim \text{Uniform}[150, 550] \text{ Mbps} \\
-    S_{container} &\sim \text{Uniform}[200, 420] \text{ MB}
+    R_{cpu} &\sim \mathcal{U}[200, 600] \text{ MIPS} \\
+    T_{exec} &\sim \mathcal{U}[200, 400] \text{ seconds} \\
+    R_{mem} &\sim \mathcal{U}[128, 512] \text{ MB} \\
+    R_{bw} &\sim \mathcal{U}[150, 550] \text{ Mbps} \\
+    S_{container} &\sim \mathcal{U}[200, 420] \text{ MB}
 \end{align}
 
 \subsection{SLA Deadline Calculation}
@@ -176,17 +176,17 @@ For $T_{exec} = 260$ seconds and $S_{container} = 240$ MB:
 The \texttt{FaultInjector} generates faults following a Poisson process with exponential inter-arrival times:
 
 \begin{equation}
-    \text{TimeBetweenFaults} = -\text{MTBF} \cdot \ln(1 - U), \quad \text{MTBF} = 45 \text{ seconds}
+    T_{\text{fault}} = -\lambda_{\text{MTBF}} \cdot \ln(1 - U), \quad \lambda_{\text{MTBF}} = 45 \text{ seconds}
 \end{equation}
 
 \subsection{Fault Type Selection}
 
 Fault types are randomly selected based on probabilities:
 \begin{equation}
-    \text{FaultType} = \begin{cases}
-        \text{CPU FAILURE} & \text{if } U < 0.33 \text{ (CPU reduced to 20\%)} \\
-        \text{BANDWIDTH DEGRADATION} & \text{if } 0.33 \leq U < 0.67 \text{ (BW reduced to 30\%)} \\
-        \text{SERVER CRASH} & \text{if } 0.67 \leq U < 1.0 \text{ (complete failure)}
+    F_{\text{type}} = \begin{cases}
+        \text{CPU\_FAILURE} & \text{if } U < 0.33 \text{ (CPU reduced to 20\%)} \\
+        \text{BANDWIDTH\_DEGRADATION} & \text{if } 0.33 \leq U < 0.67 \text{ (BW reduced to 30\%)} \\
+        \text{SERVER\_CRASH} & \text{if } 0.67 \leq U < 1.0 \text{ (complete failure)}
     \end{cases}
 \end{equation}
 
@@ -218,10 +218,10 @@ For each fault at time $t_{fault}$:
 \begin{enumerate}
     \item Apply fault degradation:
     \begin{equation}
-        \text{degradation} = \begin{cases}
-            \text{cpuFactor} = 0.2 & \text{for CPU FAILURE} \\
-            \text{bwFactor} = 0.3 & \text{for BANDWIDTH DEGRADATION} \\
-            \text{failed} = \text{true} & \text{for SERVER CRASH}
+        \gamma_{\text{degrade}} = \begin{cases}
+            \gamma_{cpu} = 0.2 & \text{for CPU\_FAILURE} \\
+            \gamma_{bw} = 0.3 & \text{for BANDWIDTH\_DEGRADATION} \\
+            \gamma_{crash} = 0 & \text{for SERVER\_CRASH}
         \end{cases}
     \end{equation}
     \item For remaining containers (if any):
@@ -442,7 +442,7 @@ For each fog node $j$ in the gossip state table (excluding self and stale entrie
 \begin{enumerate}
     \item Sort nodes by $\text{Score}(j)$ in descending order
     \item Take top $\min(\text{maxFogBidders}, \text{available\_nodes})$ candidates
-    \item If trust enabled: filter out nodes with $\text{trust} < 0.5$
+    \item If trust enabled: filter out nodes with $t(i) < \theta_{\text{trust}}$ where $\theta_{\text{trust}} = 0.5$
     \item Always include cloud if $\text{cloudId} \geq 0$
 \end{enumerate}
 
@@ -514,7 +514,7 @@ At the origin fog node, collect all bid responses and:
 \begin{enumerate}
     \item \textbf{Trust Check} (disabled by default in Mode 1):
     \begin{equation}
-        \text{Reject if } \text{trustEnabled} \land \text{trust}(\text{bidderId}) < 0.5
+        \text{Reject if } \text{trustEnabled} \land t(\text{bidderId}) < \theta_{\text{trust}}
     \end{equation}
     
     \item \textbf{Re-evaluate with Local Context}:
@@ -529,7 +529,7 @@ At the origin fog node, collect all bid responses and:
 
 \begin{equation}
     \text{EffectiveBid} = \begin{cases}
-        \frac{\text{BidValue}}{\max(10^{-6}, \text{trust}(\text{bidderId}))} & \text{if trustEnabled} \\
+        \frac{\text{BidValue}}{\max(\epsilon, t(\text{bidderId}))} & \text{if trustEnabled, } \epsilon = 10^{-6} \\
         \text{BidValue} & \text{otherwise}
     \end{cases}
 \end{equation}
@@ -650,12 +650,12 @@ The trust mechanism evaluates fog node performance across three dimensions to de
 
 All fog nodes start with maximum trust:
 \begin{equation}
-    \text{trust}(i) = 1.0, \quad \forall i \in \text{FogNodes}
+    t(i) = 1.0, \quad \forall i \in \mathcal{N}_{\text{fog}}
 \end{equation}
 
 Trust values are bounded:
 \begin{equation}
-    \text{trust}(i) \in [0, 1], \quad \forall i
+    t(i) \in [0, 1], \quad \forall i \in \mathcal{N}_{\text{fog}}
 \end{equation}
 
 \subsection{Performance Metrics Evaluation}
@@ -735,7 +735,34 @@ Performance metrics are compared against thresholds:
 
 \subsection{Combined Trust Update}
 
-Trust is updated once per task completion, incorporating all three metrics:
+Trust is updated once per task completion, incorporating all three metrics. The complete trust update function combines multiplicative decay for migration dishonesty with additive adjustments for SLA performance:
+
+\begin{equation}
+t_{\text{new}}(i) = \mathcal{T}(t(i), e_{bw}, e_{mig}, m_{sla})
+\end{equation}
+
+where the trust update function $\mathcal{T}$ is defined as:
+
+\begin{equation}
+\mathcal{T}(t, e_{bw}, e_{mig}, m_{sla}) = \begin{cases}
+    \max(0, t \times \delta_{\text{decay}} - \beta_{\text{violation}}) & \text{if } (e_{bw} > \tau_{bw} \lor e_{mig} > \tau_{mig}) \land m_{sla} < -\tau_{sla} \\
+    t \times \delta_{\text{decay}} & \text{if } e_{bw} > \tau_{bw} \lor e_{mig} > \tau_{mig} \\
+    \max(0, t - \beta_{\text{violation}}) & \text{if } m_{sla} < -\tau_{sla} \\
+    \min(1, t + \beta_{\text{success}}) & \text{if } e_{bw} \leq \tau_{bw} \land e_{mig} \leq \tau_{mig} \land m_{sla} \geq -\tau_{sla} \\
+    t & \text{otherwise}
+\end{cases}
+\end{equation}
+
+This formulation explicitly shows how:
+\begin{itemize}
+    \item \textbf{Bandwidth errors} ($e_{bw}$): Trigger multiplicative decay when $e_{bw} > \tau_{bw}$
+    \item \textbf{Migration time errors} ($e_{mig}$): Trigger multiplicative decay when $e_{mig} > \tau_{mig}$
+    \item \textbf{SLA margin} ($m_{sla}$): Triggers additive penalty when $m_{sla} < -\tau_{sla}$ (violation)
+    \item \textbf{Combined penalties}: When both migration dishonesty AND SLA violation occur, both penalties apply sequentially
+    \item \textbf{Honest behavior}: Rewards with small additive bonus only when all three metrics are within bounds
+\end{itemize}
+
+The algorithm implementation of this function is shown below:
 
 \begin{algorithm}[H]
 \caption{Combined Trust Evaluation}
@@ -749,54 +776,83 @@ Trust is updated once per task completion, incorporating all three metrics:
 \State $d_{bw} \gets (e_{bw} > \tau_{bw})$
 \State $d_{mig} \gets (e_{mig} > \tau_{mig})$
 \State $d_{sla} \gets (m_{sla} < -\tau_{sla})$
-\State $t_{current} \gets \text{trust}(i)$
-\State $t_{updated} \gets t_{current}$
+\State $t_{\text{curr}} \gets t(i)$
+\State $t_{\text{new}} \gets t_{\text{curr}}$
 \State
 \If{$d_{bw}$ \textbf{or} $d_{mig}$} \Comment{Multiplicative decay for explicit lies}
-    \State $t_{updated} \gets t_{current} \times \delta_{decay}$
+    \State $t_{\text{new}} \gets t_{\text{curr}} \times \delta_{\text{decay}}$
 \EndIf
 \State
 \If{$d_{sla}$} \Comment{Additive penalty for SLA violations}
-    \State $t_{updated} \gets \max(0, t_{updated} - \beta_{violation})$
+    \State $t_{\text{new}} \gets \max(0, t_{\text{new}} - \beta_{\text{violation}})$
 \ElsIf{$\neg d_{bw}$ \textbf{and} $\neg d_{mig}$} \Comment{Bonus only if no lies}
-    \State $t_{updated} \gets \min(1, t_{updated} + \beta_{success})$
+    \State $t_{\text{new}} \gets \min(1, t_{\text{new}} + \beta_{\text{success}})$
 \EndIf
 \State
-\State $\text{trust}(i) \gets t_{updated}$
+\State $t(i) \gets t_{\text{new}}$
 \State \Return $t_{updated}$
 \end{algorithmic}
 \end{algorithm}
 
 \subsection{Trust Update Equations}
 
+The combined trust update can be decomposed into two sequential phases:
+
 \subsubsection{Phase 1: Migration Performance (Multiplicative)}
 
-If bandwidth or migration time errors exceed thresholds:
+First, evaluate bandwidth and migration time errors:
 \begin{equation}
     t'(i) = \begin{cases}
-        t(i) \times \delta_{decay} & \text{if } d_{bw} \lor d_{mig} \\
+        t(i) \times \delta_{\text{decay}} & \text{if } e_{bw} > \tau_{bw} \lor e_{mig} > \tau_{mig} \\
         t(i) & \text{otherwise}
     \end{cases}
 \end{equation}
 
-where $\delta_{decay} = 0.5$ (50\% penalty for dishonest claims).
+where $\delta_{\text{decay}} = 0.5$ (50\% penalty for dishonest claims).
+
+\textbf{Dishonesty detection flags}:
+\begin{align}
+    d_{bw} &= \mathbb{I}(e_{bw} > \tau_{bw}) = \begin{cases} 1 & \text{if bandwidth error exceeds threshold} \\ 0 & \text{otherwise} \end{cases} \\
+    d_{mig} &= \mathbb{I}(e_{mig} > \tau_{mig}) = \begin{cases} 1 & \text{if migration time error exceeds threshold} \\ 0 & \text{otherwise} \end{cases}
+\end{align}
 
 \subsubsection{Phase 2: SLA Performance (Additive)}
 
 Applied after migration performance evaluation:
 \begin{equation}
     t''(i) = \begin{cases}
-        \max(0, t'(i) - \beta_{violation}) & \text{if } d_{sla} \\
-        \min(1, t'(i) + \beta_{success}) & \text{if } \neg d_{bw} \land \neg d_{mig} \land \neg d_{sla} \\
+        \max(0, t'(i) - \beta_{\text{violation}}) & \text{if } m_{sla} < -\tau_{sla} \\
+        \min(1, t'(i) + \beta_{\text{success}}) & \text{if } m_{sla} \geq -\tau_{sla} \land d_{bw} = 0 \land d_{mig} = 0 \\
         t'(i) & \text{otherwise}
     \end{cases}
 \end{equation}
 
 where:
 \begin{align}
-    \beta_{violation} &= 0.10 \text{ (10\% penalty for SLA violations)} \\
-    \beta_{success} &= 0.02 \text{ (2\% reward for good performance)}
+    \beta_{\text{violation}} &= 0.10 \text{ (10\% penalty for SLA violations)} \\
+    \beta_{\text{success}} &= 0.02 \text{ (2\% reward for good performance)}
 \end{align}
+
+\textbf{SLA dishonesty flag}:
+\begin{equation}
+    d_{sla} = \mathbb{I}(m_{sla} < -\tau_{sla}) = \begin{cases} 1 & \text{if task violated SLA deadline} \\ 0 & \text{otherwise} \end{cases}
+\end{equation}
+
+\subsubsection{Complete Two-Phase Update}
+
+The final trust value combines both phases:
+\begin{equation}
+    t_{\text{new}}(i) = t''(i) = \mathcal{T}_{\text{Phase2}}(\mathcal{T}_{\text{Phase1}}(t(i), e_{bw}, e_{mig}), m_{sla})
+\end{equation}
+
+\textbf{Key properties}:
+\begin{itemize}
+    \item Multiplicative decay (Phase 1) can reduce trust by up to 50\% per violation
+    \item Additive penalty (Phase 2) subtracts a fixed amount for SLA violations
+    \item Rewards only apply when ALL three metrics are honest ($d_{bw} = d_{mig} = d_{sla} = 0$)
+    \item Penalties compound: a node that lies about migration AND violates SLA receives both penalties
+    \item Trust is clamped to $[0, 1]$ via $\max(0, \cdot)$ and $\min(1, \cdot)$
+\end{itemize}
 
 \subsection{Trust-Based Bid Filtering}
 
@@ -804,12 +860,12 @@ where:
 
 Fog nodes below the trust threshold are excluded from bidding:
 \begin{equation}
-    \theta_{trust} = 0.5
+    \theta_{\text{trust}} = 0.5
 \end{equation}
 
 \begin{equation}
     \text{Eligible}(i) = \begin{cases}
-        \text{true} & \text{if } \text{trust}(i) \geq \theta_{trust} \\
+        \text{true} & \text{if } t(i) \geq \theta_{\text{trust}} \\
         \text{false} & \text{otherwise}
     \end{cases}
 \end{equation}
@@ -818,15 +874,18 @@ Fog nodes below the trust threshold are excluded from bidding:
 
 Low-trust nodes have inflated bid costs:
 \begin{equation}
-    \text{EffectiveBid}(i) = \frac{\text{BidValue}(i)}{\max(10^{-6}, \text{trust}(i))}
+    \text{EffectiveBid}(i) = \frac{\text{BidValue}(i)}{\max(\epsilon, t(i))}, \quad \epsilon = 10^{-6}
 \end{equation}
 
-\textbf{Example}:
+\textbf{Trust impact on effective bid}:
 \begin{itemize}
-    \item BidValue = 10.0, trust = 1.0 → EffectiveBid = 10.0
-    \item BidValue = 10.0, trust = 0.5 → EffectiveBid = 20.0
-    \item BidValue = 10.0, trust = 0.25 → EffectiveBid = 40.0
+    \item BidValue = 10.0, $t(i) = 1.0$ → EffectiveBid = 10.0
+    \item BidValue = 10.0, $t(i) = 0.5$ → EffectiveBid = 20.0 (2× penalty)
+    \item BidValue = 10.0, $t(i) = 0.25$ → EffectiveBid = 40.0 (4× penalty)
+    \item BidValue = 10.0, $t(i) = 0.125$ → EffectiveBid = 80.0 (8× penalty)
 \end{itemize}
+
+This economic penalty incentivizes honest reporting without hard exclusion (except when $t(i) < \theta_{\text{trust}}$).
 
 \subsection{Trust Recovery Mechanism}
 
@@ -985,7 +1044,7 @@ Severe penalty for multiple violations.
 
 Low-trust nodes become less competitive:
 \begin{equation}
-    \text{Winner} = \arg\min_{i \in \text{Feasible}} \left\{ \frac{\text{BidValue}(i)}{\text{trust}(i)} \right\}
+    \text{Winner} = \arg\min_{i \in \mathcal{F}} \left\{ \frac{\text{BidValue}(i)}{t(i)} \right\}, \quad \mathcal{F} = \{i : t(i) \geq \theta_{\text{trust}}\}
 \end{equation}
 
 \subsubsection{Economic Incentive}
@@ -1271,27 +1330,27 @@ This section presents the formal algorithms underlying the fault tolerance mecha
 \State $d_{sla} \gets (m_{sla} < -\tau_{sla})$ \Comment{Negative = violation}
 \State
 \State \Comment{Get current trust}
-\State $t_{current} \gets \text{trust}(executor)$
-\State $t_{updated} \gets t_{current}$
+\State $t_{\text{curr}} \gets t(executor)$
+\State $t_{\text{new}} \gets t_{\text{curr}}$
 \State
 \State \Comment{Phase 1: Multiplicative penalty for bandwidth/migration lies}
 \If{$d_{bw}$ \textbf{or} $d_{mig}$}
-    \State $t_{updated} \gets t_{current} \times \delta_{decay}$ \Comment{50\% decay}
+    \State $t_{\text{new}} \gets t_{\text{curr}} \times \delta_{\text{decay}}$ \Comment{50\% decay}
 \EndIf
 \State
 \State \Comment{Phase 2: Additive adjustment for SLA performance}
 \If{$d_{sla}$}
-    \State $t_{updated} \gets \max(0, t_{updated} - \beta_{violation})$ \Comment{-10\% penalty}
+    \State $t_{\text{new}} \gets \max(0, t_{\text{new}} - \beta_{\text{violation}})$ \Comment{-10\% penalty}
 \ElsIf{$\neg d_{bw}$ \textbf{and} $\neg d_{mig}$ \textbf{and} $\neg d_{sla}$}
-    \State $t_{updated} \gets \min(1, t_{updated} + \beta_{success})$ \Comment{+2\% reward}
+    \State $t_{\text{new}} \gets \min(1, t_{\text{new}} + \beta_{\text{success}})$ \Comment{+2\% reward}
 \EndIf
 \State
 \State \Comment{Update trust table}
-\State $\text{trust}(executor) \gets t_{updated}$
+\State $t(executor) \gets t_{\text{new}}$
 \State
 \State \Comment{Log trust change}
-\State $\text{recordTrustEvaluation}(container, executor, m_{sla}, t_{current}, t_{updated}, d_{sla})$
-\State \Return $t_{updated}$
+\State $\text{recordTrustEvaluation}(container, executor, m_{sla}, t_{\text{curr}}, t_{\text{new}}, d_{sla})$
+\State \Return $t_{\text{new}}$
 \end{algorithmic}
 \end{algorithm}
 
@@ -1301,17 +1360,17 @@ This section presents the formal algorithms underlying the fault tolerance mecha
 \caption{Select Winning Bid with Trust Consideration}
 \begin{algorithmic}[1]
 \Require Set of bid responses $bids$ and container to place $container$
-\Require Minimum trust threshold $\theta_{trust} = 0.5$
+\Require Minimum trust threshold $\theta_{\text{trust}} = 0.5$
 \Ensure Winner selected or fallback to cloud
 \State $validBids \gets \emptyset$
 \State
 \State \Comment{Filter and evaluate bids}
 \For{each $bid \in bids$}
     \State $bidder \gets bid.\text{getBidderId}()$
-    \State $t \gets \text{trust}(bidder)$
+    \State $t_{\text{bidder}} \gets t(bidder)$
     \State
     \State \Comment{Hard threshold: reject low-trust nodes}
-    \If{$t < \theta_{trust}$}
+    \If{$t_{\text{bidder}} < \theta_{\text{trust}}$}
         \State $\text{logRejection}(bid, \text{``TRUST\_BELOW\_THRESHOLD''})$
         \State \textbf{continue}
     \EndIf
@@ -1322,8 +1381,8 @@ This section presents the formal algorithms underlying the fault tolerance mecha
     \EndIf
     \State
     \State \Comment{Calculate effective bid with trust penalty}
-    \State $\text{effectiveBid} \gets \frac{bid.\text{getValue}()}{\max(10^{-6}, t)}$
-    \State $evaluation \gets \text{createEvaluation}(bid, \text{effectiveBid}, t)$
+    \State $\text{effectiveBid} \gets \frac{bid.\text{getValue}()}{\max(\epsilon, t_{\text{bidder}})}$ where $\epsilon = 10^{-6}$
+    \State $evaluation \gets \text{createEvaluation}(bid, \text{effectiveBid}, t_{\text{bidder}})$
     \State $validBids \gets validBids \cup \{evaluation\}$
 \EndFor
 \State
@@ -1344,18 +1403,18 @@ This section presents the formal algorithms underlying the fault tolerance mecha
 \begin{algorithm}[H]
 \caption{Compute Recovery Time from Low Trust}
 \begin{algorithmic}[1]
-\Require Current trust value $t_{current}$
-\Require Target trust threshold $\theta_{trust} = 0.5$
-\Require Recovery increment per honest task $\beta_{success} = 0.02$
+\Require Current trust value $t_{\text{curr}}$
+\Require Target trust threshold $\theta_{\text{trust}} = 0.5$
+\Require Recovery increment per honest task $\beta_{\text{success}} = 0.02$
 \Ensure Number of honest tasks required to reach threshold
-\If{$t_{current} \geq \theta_{trust}$}
+\If{$t_{\text{curr}} \geq \theta_{\text{trust}}$}
     \State \Return 0 \Comment{Already above threshold}
 \EndIf
 \State
-\State $deficit \gets \theta_{trust} - t_{current}$
-\State $tasksRequired \gets \lceil \frac{deficit}{\beta_{success}} \rceil$
+\State $\Delta t \gets \theta_{\text{trust}} - t_{\text{curr}}$
+\State $N_{\text{tasks}} \gets \lceil \frac{\Delta t}{\beta_{\text{success}}} \rceil$
 \State
-\State \Return $tasksRequired$
+\State \Return $N_{\text{tasks}}$
 \end{algorithmic}
 \end{algorithm}
 
