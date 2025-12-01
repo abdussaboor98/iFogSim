@@ -19,6 +19,7 @@ public class SimulationConfig {
     private Topology topology = new Topology();
     private Network network = new Network();
     private SlaConfig sla = new SlaConfig();
+    private MetricsConfig metrics = new MetricsConfig();
 
     public Simulation getSimulation() {
         return simulation;
@@ -90,6 +91,14 @@ public class SimulationConfig {
 
     public void setSla(SlaConfig sla) {
         this.sla = sla;
+    }
+
+    public MetricsConfig getMetrics() {
+        return metrics;
+    }
+
+    public void setMetrics(MetricsConfig metrics) {
+        this.metrics = metrics;
     }
 
     public static class Simulation {
@@ -543,6 +552,7 @@ public class SimulationConfig {
         private int servers = 3;
         private ResourceCapacity serverCapacity = new ResourceCapacity();
         private double capacityMultiplier = 1.0;
+        private int edgeDevices = 0;
 
         public String getName() {
             return name;
@@ -574,6 +584,14 @@ public class SimulationConfig {
 
         public void setCapacityMultiplier(double capacityMultiplier) {
             this.capacityMultiplier = capacityMultiplier;
+        }
+
+        public int getEdgeDevices() {
+            return edgeDevices;
+        }
+
+        public void setEdgeDevices(int edgeDevices) {
+            this.edgeDevices = edgeDevices;
         }
     }
 
@@ -689,6 +707,19 @@ public class SimulationConfig {
 
         public boolean isConfigured() {
             return max > min && max > 0;
+        }
+    }
+
+    public static class MetricsConfig {
+        /** Write per-task tracking CSV files by default (task_status/dropped_tasks). */
+        private boolean perTaskCsv = true;
+
+        public boolean isPerTaskCsv() {
+            return perTaskCsv;
+        }
+
+        public void setPerTaskCsv(boolean perTaskCsv) {
+            this.perTaskCsv = perTaskCsv;
         }
     }
 }

@@ -385,7 +385,7 @@ public class MetricsCollector {
     }
 
     /** Export to a simple JSON lines structure for post-processing. */
-    public void export(Path outDir) throws IOException {
+    public void export(Path outDir, boolean perTaskCsv) throws IOException {
         Files.createDirectories(outDir);
         Files.writeString(outDir.resolve("migrations.json"), JsonUtil.toJsonLines(migrations));
         Files.writeString(outDir.resolve("faults.json"), JsonUtil.toJsonLines(faults));
@@ -404,12 +404,14 @@ public class MetricsCollector {
         Files.writeString(outDir.resolve("trust_evaluations.csv"), JsonUtil.toCsv(trustEvaluations, "time,containerId,bidderId,bidderName,claimedBw,actualBw,claimedMigTime,actualMigTime,errBw,errMig,trustBefore,trustAfter,dishonest"));
         Files.writeString(outDir.resolve("sla_makespan_metrics.csv"), JsonUtil.toCsv(sla,
                 "taskId,originatingEdge,assignedFogNode,arrivalTime,completionTime,deadline,slaSuccess,T_exec,T_net,T_slack,T_mig,makespan,makespanSeconds,mode"));
-        Files.writeString(outDir.resolve("task_status.csv"), JsonUtil.toCsv(
+        if (perTaskCsv) {
+            Files.writeString(outDir.resolve("task_status.csv"), JsonUtil.toCsv(
                 getTaskStatusRecords(),
                 "containerId,originatingEdge,ownerFog,currentHost,arrivalTime,deadline,lastUpdateTime,status,statusDetail,dropReason,migrationAttempts,lastMigrationTrigger,isPending,T_exec,T_net,T_slack,T_mig,completionTime,slaSuccess"));
-        Files.writeString(outDir.resolve("dropped_tasks.csv"), JsonUtil.toCsv(
+            Files.writeString(outDir.resolve("dropped_tasks.csv"), JsonUtil.toCsv(
                 getDroppedTaskRecords(),
                 "containerId,originatingEdge,ownerFog,currentHost,arrivalTime,dropTime,deadline,dropReason,lastMigrationTrigger,migrationAttempts,isPending,T_exec,T_net,T_slack,T_mig"));
+        }
     }
 
     public enum MigrationKind { INTRA_FOG, INTER_FOG, CLOUD }

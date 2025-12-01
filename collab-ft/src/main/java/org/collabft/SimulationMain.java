@@ -133,7 +133,7 @@ public class SimulationMain {
         // Export metrics to mode-specific logs directory
         Path metricsDir = Path.of("logs", "mode-" + mode);
         try {
-            MetricsRegistry.collector().export(metricsDir);
+            MetricsRegistry.collector().export(metricsDir, config.getMetrics().isPerTaskCsv());
             Log.printLine("Metrics exported to " + metricsDir.toAbsolutePath());
         } catch (Exception e) {
             Log.printLine("Failed to export metrics: " + e.getMessage());
