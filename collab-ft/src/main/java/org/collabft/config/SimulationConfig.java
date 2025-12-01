@@ -223,6 +223,7 @@ public class SimulationConfig {
         private double resumeSeconds = 1.0;
         private double resourceImpactK = 0.5;
         private int maxFogBidders = 3;
+        private double bidTimeoutSeconds = 30.0;
 
         public double getPauseSeconds() {
             return pauseSeconds;
@@ -261,6 +262,14 @@ public class SimulationConfig {
 
         public void setMaxFogBidders(int maxFogBidders) {
             this.maxFogBidders = maxFogBidders;
+        }
+
+        public double getBidTimeoutSeconds() {
+            return bidTimeoutSeconds;
+        }
+
+        public void setBidTimeoutSeconds(double bidTimeoutSeconds) {
+            this.bidTimeoutSeconds = bidTimeoutSeconds;
         }
     }
 

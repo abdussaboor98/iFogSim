@@ -129,6 +129,7 @@ public class SimulationMain {
         CloudSim.startSimulation();
         CloudSim.stopSimulation();
         MetricsRegistry.collector().markSimFinish(config.getSimulation().getDurationSeconds());
+        MetricsRegistry.collector().finalizeTaskStatuses(config.getSimulation().getDurationSeconds());
         // Export metrics to mode-specific logs directory
         Path metricsDir = Path.of("logs", "mode-" + mode);
         try {

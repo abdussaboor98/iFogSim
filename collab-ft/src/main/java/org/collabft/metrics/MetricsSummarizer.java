@@ -27,6 +27,7 @@ public final class MetricsSummarizer {
         summary.put("availability", availabilitySummary(collector));
         summary.put("makespanStats", makespanSummary(collector));
         summary.put("loadImbalance", loadImbalance(collector));
+        summary.put("tasks", taskSummary(collector));
 
         Files.writeString(resultsDir.resolve("summary.json"), MetricsCollector.JsonUtil.toJsonObject(summary));
 
@@ -137,6 +138,15 @@ public final class MetricsSummarizer {
         a.put("recovered", recovered);
         a.put("availabilityRatio", totalFaults == 0 ? 1.0 : (double) recovered / totalFaults);
         return a;
+    }
+
+    private static Map<String, Object> taskSummary(MetricsCollector collector) {
+        Map<String, Object> t = new HashMap<>();
+        t.put("generated", collector.getTotalTasksGenerated());
+        t.put("completed", collector.getCompletedTaskCount());
+        t.put("dropped", collector.getDroppedTaskCount());
+        t.put("dropReasons", collector.getTaskDropReasonCounts());
+        return t;
     }
 
     private static Map<String, Object> loadImbalance(MetricsCollector collector) {

@@ -31,6 +31,9 @@ public class MetricsCollector {
     private final EconomicRecord economic = new EconomicRecord();
     private final Map<String, DecisionLatency> decisionLatency = new HashMap<>();
     private final List<Double> makespans = new ArrayList<>();
+    private final Map<String, TaskInfo> tasks = new HashMap<>();
+    private final Map<String, Integer> dropReasonCounts = new HashMap<>();
+    private int totalTasksGenerated = 0;
     private double simStart = 0;
     private double simFinish = 0;
 
@@ -192,6 +195,155 @@ public class MetricsCollector {
         return makespans;
     }
 
+    public void recordTaskGenerated(ContainerModule container, String ownerFog, double timeSeconds) {
+        TaskInfo info = new TaskInfo(
+                container.getContainerId(),
+                container.getOriginatingEdge(),
+                ownerFog,
+                container.getArrivalTime(),
+                container.getDeadlineSeconds(),
+                container.getTExecSeconds(),
+                container.getTNetSeconds(),
+                container.getTSlackSeconds(),
+                container.getTMigSeconds());
+        info.currentHost = ownerFog;
+        info.status = TaskStatus.ARRIVED;
+        info.statusDetail = "arrived";
+        info.lastUpdateTime = timeSeconds;
+        tasks.put(container.getContainerId(), info);
+        totalTasksGenerated++;
+    }
+
+    public void markTaskRunning(ContainerModule container, String hostName, String detail, double timeSeconds) {
+        TaskInfo info = tasks.get(container.getContainerId());
+        updateStatus(info, TaskStatus.RUNNING, detail, hostName, false, timeSeconds);
+    }
+
+    public void markTaskPending(ContainerModule container, String detail, boolean pending, double timeSeconds) {
+        TaskInfo info = tasks.get(container.getContainerId());
+        updateStatus(info, pending ? TaskStatus.PENDING : null, detail, null, pending, timeSeconds);
+    }
+
+    public void markTaskPending(String containerId, String detail, boolean pending, double timeSeconds) {
+        TaskInfo info = tasks.get(containerId);
+        updateStatus(info, pending ? TaskStatus.PENDING : null, detail, null, pending, timeSeconds);
+    }
+
+    public void recordTaskMigrationAttempt(ContainerModule container, String trigger, double timeSeconds) {
+        TaskInfo info = tasks.get(container.getContainerId());
+        if (info == null) {
+            return;
+        }
+        info.migrationAttempts++;
+        if (trigger != null && !trigger.isBlank()) {
+            info.lastMigrationTrigger = trigger;
+        }
+        info.lastUpdateTime = timeSeconds;
+    }
+
+    public void markTaskMigrating(ContainerModule container, String targetHost, String trigger, double timeSeconds) {
+        TaskInfo info = tasks.get(container.getContainerId());
+        updateStatus(info, TaskStatus.MIGRATING, trigger, targetHost, false, timeSeconds);
+    }
+
+    public void markTaskMigrationFailed(ContainerModule container, String reason, double timeSeconds) {
+        TaskInfo info = tasks.get(container.getContainerId());
+        updateStatus(info, TaskStatus.FAILED, reason, null, true, timeSeconds);
+    }
+
+    public void markTaskCompleted(ContainerModule container, double completionTime, String finishHost, boolean slaSuccess) {
+        TaskInfo info = tasks.get(container.getContainerId());
+        if (info == null) {
+            return;
+        }
+        updateStatus(info, TaskStatus.COMPLETED, finishHost, finishHost, false, completionTime);
+        info.completed = true;
+        info.completionTime = completionTime;
+        info.slaSuccess = slaSuccess;
+    }
+
+    public void markTaskDropped(ContainerModule container, String reason, double dropTime) {
+        markTaskDropped(container.getContainerId(), reason, dropTime);
+    }
+
+    private void markTaskDropped(String containerId, String reason, double dropTime) {
+        TaskInfo info = tasks.get(containerId);
+        if (info == null || info.dropped) {
+            return;
+        }
+        String normalized = (reason == null || reason.isBlank())
+                ? (info.status != null ? info.status.name().toLowerCase() : "unknown")
+                : reason;
+        updateStatus(info, TaskStatus.DROPPED, normalized, null, false, dropTime);
+        info.dropped = true;
+        info.dropReason = normalized;
+        dropReasonCounts.merge(normalized, 1, Integer::sum);
+    }
+
+    private void updateStatus(TaskInfo info, TaskStatus status, String detail, String host, Boolean pending, double timeSeconds) {
+        if (info == null) {
+            return;
+        }
+        if (status != null) {
+            info.status = status;
+        }
+        if (detail != null && !detail.isBlank()) {
+            info.statusDetail = detail;
+        } else if (detail != null) {
+            info.statusDetail = "";
+        }
+        if (host != null && !host.isBlank()) {
+            info.currentHost = host;
+        }
+        if (pending != null) {
+            info.pending = pending;
+        }
+        info.lastUpdateTime = timeSeconds;
+    }
+
+    public void finalizeTaskStatuses(double simFinishSeconds) {
+        for (TaskInfo info : tasks.values()) {
+            if (!info.completed && !info.dropped) {
+                markTaskDropped(info.containerId, info.statusDetail, simFinishSeconds);
+            }
+        }
+    }
+
+    public int getTotalTasksGenerated() {
+        return totalTasksGenerated;
+    }
+
+    public long getCompletedTaskCount() {
+        return tasks.values().stream().filter(info -> info.completed).count();
+    }
+
+    public long getDroppedTaskCount() {
+        return dropReasonCounts.values().stream().mapToLong(Integer::longValue).sum();
+    }
+
+    public Map<String, Integer> getTaskDropReasonCounts() {
+        return new HashMap<>(dropReasonCounts);
+    }
+
+    public List<TaskStatusRecord> getTaskStatusRecords() {
+        List<TaskStatusRecord> records = new ArrayList<>();
+        for (TaskInfo info : tasks.values()) {
+            records.add(info.toStatusRecord());
+        }
+        return records;
+    }
+
+    public List<TaskDropRecord> getDroppedTaskRecords() {
+        List<TaskDropRecord> records = new ArrayList<>();
+        for (TaskInfo info : tasks.values()) {
+            TaskDropRecord record = info.toDropRecord();
+            if (record != null) {
+                records.add(record);
+            }
+        }
+        return records;
+    }
+
     public void reset() {
         migrations.clear();
         faults.clear();
@@ -209,6 +361,9 @@ public class MetricsCollector {
         economic.payments.clear();
         decisionLatency.clear();
         makespans.clear();
+        tasks.clear();
+        dropReasonCounts.clear();
+        totalTasksGenerated = 0;
         simStart = 0;
         simFinish = 0;
     }
@@ -249,6 +404,12 @@ public class MetricsCollector {
         Files.writeString(outDir.resolve("trust_evaluations.csv"), JsonUtil.toCsv(trustEvaluations, "time,containerId,bidderId,bidderName,claimedBw,actualBw,claimedMigTime,actualMigTime,errBw,errMig,trustBefore,trustAfter,dishonest"));
         Files.writeString(outDir.resolve("sla_makespan_metrics.csv"), JsonUtil.toCsv(sla,
                 "taskId,originatingEdge,assignedFogNode,arrivalTime,completionTime,deadline,slaSuccess,T_exec,T_net,T_slack,T_mig,makespan,makespanSeconds,mode"));
+        Files.writeString(outDir.resolve("task_status.csv"), JsonUtil.toCsv(
+                getTaskStatusRecords(),
+                "containerId,originatingEdge,ownerFog,currentHost,arrivalTime,deadline,lastUpdateTime,status,statusDetail,dropReason,migrationAttempts,lastMigrationTrigger,isPending,T_exec,T_net,T_slack,T_mig,completionTime,slaSuccess"));
+        Files.writeString(outDir.resolve("dropped_tasks.csv"), JsonUtil.toCsv(
+                getDroppedTaskRecords(),
+                "containerId,originatingEdge,ownerFog,currentHost,arrivalTime,dropTime,deadline,dropReason,lastMigrationTrigger,migrationAttempts,isPending,T_exec,T_net,T_slack,T_mig"));
     }
 
     public enum MigrationKind { INTRA_FOG, INTER_FOG, CLOUD }
@@ -297,6 +458,71 @@ public class MetricsCollector {
     public record TrustEvaluationRecord(String containerId, int bidderId, String bidderName, double claimedBw, double actualBw,
                                         double claimedMigTime, double actualMigTime, double errBw, double errMig,
                                         double trustBefore, double trustAfter, boolean dishonest, double time) { }
+
+    public enum TaskStatus { ARRIVED, RUNNING, PENDING, MIGRATING, FAILED, COMPLETED, DROPPED }
+
+    private static final class TaskInfo {
+        private final String containerId;
+        private final String originatingEdge;
+        private final String ownerFog;
+        private final double arrivalTime;
+        private final double deadline;
+        private final double tExec;
+        private final double tNet;
+        private final double tSlack;
+        private final double tMig;
+        private String currentHost;
+        private TaskStatus status = TaskStatus.ARRIVED;
+        private String statusDetail = "";
+        private double lastUpdateTime;
+        private boolean pending;
+        private int migrationAttempts;
+        private String lastMigrationTrigger = "";
+        private boolean completed;
+        private double completionTime = -1;
+        private boolean slaSuccess;
+        private boolean dropped;
+        private String dropReason = "";
+
+        TaskInfo(String containerId, String originatingEdge, String ownerFog, double arrivalTime, double deadline,
+                 double tExec, double tNet, double tSlack, double tMig) {
+            this.containerId = containerId;
+            this.originatingEdge = originatingEdge;
+            this.ownerFog = ownerFog;
+            this.arrivalTime = arrivalTime;
+            this.deadline = deadline;
+            this.tExec = tExec;
+            this.tNet = tNet;
+            this.tSlack = tSlack;
+            this.tMig = tMig;
+            this.currentHost = ownerFog;
+        }
+
+        TaskStatusRecord toStatusRecord() {
+            return new TaskStatusRecord(containerId, originatingEdge, ownerFog, currentHost, arrivalTime, deadline,
+                    lastUpdateTime, status, statusDetail, dropReason, migrationAttempts, lastMigrationTrigger,
+                    pending, tExec, tNet, tSlack, tMig, completionTime, slaSuccess);
+        }
+
+        TaskDropRecord toDropRecord() {
+            if (!dropped) {
+                return null;
+            }
+            return new TaskDropRecord(containerId, originatingEdge, ownerFog, currentHost, arrivalTime, lastUpdateTime,
+                    deadline, dropReason, lastMigrationTrigger, migrationAttempts, pending, tExec, tNet, tSlack, tMig);
+        }
+    }
+
+    public record TaskStatusRecord(String containerId, String originatingEdge, String ownerFog, String currentHost,
+                                   double arrivalTime, double deadline, double lastUpdateTime, TaskStatus status,
+                                   String statusDetail, String dropReason, int migrationAttempts,
+                                   String lastMigrationTrigger, boolean pending, double tExec, double tNet, double tSlack,
+                                   double tMig, double completionTime, boolean slaSuccess) { }
+
+    public record TaskDropRecord(String containerId, String originatingEdge, String ownerFog, String currentHost,
+                                 double arrivalTime, double dropTime, double deadline, String dropReason,
+                                 String lastMigrationTrigger, int migrationAttempts, boolean pending,
+                                 double tExec, double tNet, double tSlack, double tMig) { }
 
     /** Minimal JSON serializer for structured metrics lines. */
     public static final class JsonUtil {
@@ -388,6 +614,20 @@ public class MetricsCollector {
                             .append(s.arrivalTime()).append(',').append(s.completionTime()).append(',').append(s.deadlineSeconds()).append(',')
                             .append(s.slaSuccess()).append(',').append(s.tExec()).append(',').append(s.tNet()).append(',').append(s.tSlack()).append(',')
                             .append(s.tMig()).append(',').append(s.makespan()).append(',').append(s.makespan()).append(',').append(s.mode()).append("\n");
+                } else if (row instanceof TaskStatusRecord t) {
+                    sb.append(t.containerId()).append(',').append(t.originatingEdge()).append(',').append(t.ownerFog()).append(',')
+                            .append(t.currentHost()).append(',').append(t.arrivalTime()).append(',').append(t.deadline()).append(',')
+                            .append(t.lastUpdateTime()).append(',').append(t.status() != null ? t.status().name().toLowerCase() : "").append(',')
+                            .append(t.statusDetail()).append(',').append(t.dropReason()).append(',').append(t.migrationAttempts()).append(',')
+                            .append(t.lastMigrationTrigger()).append(',').append(t.pending()).append(',')
+                            .append(t.tExec()).append(',').append(t.tNet()).append(',').append(t.tSlack()).append(',').append(t.tMig()).append(',')
+                            .append(t.completionTime()).append(',').append(t.slaSuccess()).append("\n");
+                } else if (row instanceof TaskDropRecord d) {
+                    sb.append(d.containerId()).append(',').append(d.originatingEdge()).append(',').append(d.ownerFog()).append(',')
+                            .append(d.currentHost()).append(',').append(d.arrivalTime()).append(',').append(d.dropTime()).append(',')
+                            .append(d.deadline()).append(',').append(d.dropReason()).append(',').append(d.lastMigrationTrigger()).append(',')
+                            .append(d.migrationAttempts()).append(',').append(d.pending()).append(',')
+                            .append(d.tExec()).append(',').append(d.tNet()).append(',').append(d.tSlack()).append(',').append(d.tMig()).append("\n");
                 }
             }
             return sb.toString();

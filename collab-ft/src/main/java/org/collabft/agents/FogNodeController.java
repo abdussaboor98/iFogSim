@@ -35,6 +35,7 @@ public class FogNodeController extends FogDevice {
     private final TrustManager trustManager;
     private final Map<String, BidContext> winnerContexts = new HashMap<>();
     private final Map<String, Double> transferStarts = new HashMap<>();
+    private final Set<String> settledContainers = new HashSet<>();
     private int activeTransfers = 0;
     private final Queue<ContainerModule> pendingMigrations = new ArrayDeque<>();
     private List<Integer> neighborIds = new ArrayList<>();
@@ -87,6 +88,7 @@ public class FogNodeController extends FogDevice {
             case FAULT_EVENT -> handleFault(ev);
             case MIGRATION_REQUEST, BID_REQUEST -> handleMigrationRequest(ev);
             case BID_RESPONSE -> handleBidResponse(ev);
+            case BID_TIMEOUT -> handleBidTimeout(ev);
             case MIGRATION_START -> handleMigrationStart(ev);
             case MIGRATION_FINISH -> handleMigrationFinish(ev);
             case GOSSIP_EVENT -> handleGossip(ev);
@@ -103,6 +105,7 @@ public class FogNodeController extends FogDevice {
         ContainerModule module = new ContainerModule("container-" + profile.getTaskId(), "collab-app", getId(), profile);
         module.setOwnerFog(getName());
         module.setOwnerId(getId());
+        MetricsRegistry.collector().recordTaskGenerated(module, getName(), CloudSim.clock());
         placeNewContainer(module);
     }
 
@@ -190,6 +193,21 @@ public class FogNodeController extends FogDevice {
         if (!bidManager.isComplete(containerId)) {
             return;
         }
+        finalizeBidRound(containerId);
+    }
+
+    private void handleBidTimeout(SimEvent ev) {
+        if (!(ev.getData() instanceof String containerId)) {
+            return;
+        }
+        if (!bidManager.hasPending(containerId)) {
+            return;
+        }
+        bidManager.expirePending(containerId);
+        finalizeBidRound(containerId);
+    }
+
+    private void finalizeBidRound(String containerId) {
         List<BidResponse> responses = bidManager.getResponses(containerId);
         ContainerModule container = bidManager.getContainer(containerId);
         if (container == null) {
@@ -215,6 +233,7 @@ public class FogNodeController extends FogDevice {
             winnerContexts.put(containerId, context);
             double transferStart = CloudSim.clock();
             transferStarts.put(containerId, transferStart);
+            MetricsRegistry.collector().markTaskMigrating(container, CloudSim.getEntityName(win.response().getBidderId()), container.getMigrationTrigger(), CloudSim.clock());
             send(win.response().getBidderId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_START,
                     new MigrationTransfer(container, getId(), sourceHost(container), kind, linkBw, latency, container.getMigrationTrigger()));
             bidManager.recordWinner(container.getContainerId(), win.response());
@@ -230,6 +249,7 @@ public class FogNodeController extends FogDevice {
                 winnerContexts.put(containerId, new BidContext(eval));
                 double transferStart = CloudSim.clock();
                 transferStarts.put(containerId, transferStart);
+                MetricsRegistry.collector().markTaskMigrating(container, CloudSim.getEntityName(cloudId), container.getMigrationTrigger(), CloudSim.clock());
                 send(cloudId, CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_START,
                         new MigrationTransfer(container, getId(), sourceHost(container), MetricsCollector.MigrationKind.CLOUD, actualLinkBandwidth(cloudId), linkLatencyFor(cloudId), container.getMigrationTrigger()));
                 MetricsRegistry.collector().markBidWinner(containerId, cloudId);
@@ -288,6 +308,11 @@ public class FogNodeController extends FogDevice {
                 result.getOverheadBw(),
                 result.isSuccess(),
                 result.getTrigger());
+        if (result.isSuccess()) {
+            MetricsRegistry.collector().markTaskRunning(result.getContainer(), result.getTo(), result.getTrigger(), CloudSim.clock());
+        } else {
+            MetricsRegistry.collector().markTaskMigrationFailed(result.getContainer(), result.getTrigger(), CloudSim.clock());
+        }
         BidContext context = winnerContexts.get(result.getContainer().getContainerId());
         Double start = transferStarts.remove(result.getContainer().getContainerId());
         if (context != null) {
@@ -389,6 +414,7 @@ public class FogNodeController extends FogDevice {
         }
         MetricsRegistry.collector().recordPlacement(container.getContainerId(), getName(), target.getName(), CloudSim.clock(), true, "initial_local", snapshotServerLoads());
         container.setPaused(false);
+        MetricsRegistry.collector().markTaskRunning(container, target.getName(), "initial_local", CloudSim.clock());
         scheduleCompletion(target, container);
     }
 
@@ -439,6 +465,7 @@ public class FogNodeController extends FogDevice {
     private void migrateContainer(ContainerModule container, String trigger) {
         container.setMigrationStart(CloudSim.clock());
         container.setMigrationTrigger(trigger);
+        MetricsRegistry.collector().recordTaskMigrationAttempt(container, trigger, CloudSim.clock());
         container.setPaused(true);
         checkpointIfHosted(container);
         // Phase 1: try intra-fog
@@ -449,6 +476,7 @@ public class FogNodeController extends FogDevice {
             container.setPaused(false);
             container.recordLastBid(getId(), 0.0);
             MetricsRegistry.collector().recordPlacement(container.getContainerId(), getName(), localTarget.getName(), CloudSim.clock(), true, "intra_fog_local", snapshotServerLoads());
+            MetricsRegistry.collector().markTaskRunning(container, localTarget.getName(), "intra_fog_local", CloudSim.clock());
             scheduleCompletion(localTarget, container);
             double finish = CloudSim.clock();
             send(getId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_FINISH,
@@ -459,6 +487,7 @@ public class FogNodeController extends FogDevice {
         boolean faultPresent = servers.stream().anyMatch(FogServer::isFaulted);
         String reason = faultPresent ? "intra_local_infeasible_fault" : "intra_local_infeasible";
         MetricsRegistry.collector().recordPlacement(container.getContainerId(), getName(), "none", CloudSim.clock(), false, reason, loadsBefore);
+        MetricsRegistry.collector().markTaskPending(container, reason, true, CloudSim.clock());
         if (mode == 2 && schedulerId >= 0) {
             MetricsRegistry.collector().recordDecisionLatency(container.getContainerId(), container.getMigrationStart(), CloudSim.clock(), true);
             send(schedulerId, CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_REQUEST,
@@ -521,6 +550,7 @@ public class FogNodeController extends FogDevice {
                     winnerContexts.put(container.getContainerId(), new BidContext(eval));
                     double transferStart = CloudSim.clock();
                     transferStarts.put(container.getContainerId(), transferStart);
+                    MetricsRegistry.collector().markTaskMigrating(container, CloudSim.getEntityName(cloudId), trigger, CloudSim.clock());
                     send(cloudId, CloudSim.getMinTimeBetweenEvents(), CollabSimTags.MIGRATION_START,
                             new MigrationTransfer(container, getId(), sourceHost(container), MetricsCollector.MigrationKind.CLOUD, actualLinkBandwidth(cloudId), linkLatencyFor(cloudId), trigger));
                     MetricsRegistry.collector().markBidWinner(container.getContainerId(), cloudId);
@@ -532,6 +562,11 @@ public class FogNodeController extends FogDevice {
             return;
         }
         bidManager.startBid(container, bidderIds);
+        double timeoutSeconds = config.getBidding().getBidTimeoutSeconds();
+        if (timeoutSeconds > 0) {
+            send(getId(), timeoutSeconds, CollabSimTags.BID_TIMEOUT, container.getContainerId());
+        }
+        MetricsRegistry.collector().markTaskPending(container, "awaiting_bids", true, CloudSim.clock());
         MigrationRequest request = new MigrationRequest(container, getId());
         for (Integer bidderId : bidderIds) {
             send(bidderId, CloudSim.getMinTimeBetweenEvents(), CollabSimTags.BID_REQUEST, request);
@@ -650,6 +685,9 @@ public class FogNodeController extends FogDevice {
     }
 
     private void settleSlaAndPayment(ContainerModule container, double finishTime, String finishFog) {
+        if (!settledContainers.add(container.getContainerId())) {
+            return;
+        }
         // Apply passive trust recovery for all nodes at settlement time
         trustManager.applyPassiveRecoveryAll(CloudSim.clock());
         
@@ -659,6 +697,7 @@ public class FogNodeController extends FogDevice {
         container.setSlaSuccess(slaMet);
         container.setMakespan(makespan);
         container.setCompletionTime(completionTime);
+        MetricsRegistry.collector().markTaskCompleted(container, completionTime, finishFog, slaMet);
 
         BidContext context = winnerContexts.remove(container.getContainerId());
         BidEvaluation eval = context != null ? context.evaluation : null;
@@ -755,11 +794,16 @@ public class FogNodeController extends FogDevice {
         boolean exists = pendingMigrations.stream().anyMatch(c -> c.getContainerId().equals(container.getContainerId()));
         if (!exists) {
             pendingMigrations.add(container);
+            String detail = container.getMigrationTrigger().isEmpty() ? "pending" : container.getMigrationTrigger();
+            MetricsRegistry.collector().markTaskPending(container, detail, true, CloudSim.clock());
         }
     }
 
     private void clearPending(String containerId) {
-        pendingMigrations.removeIf(c -> c.getContainerId().equals(containerId));
+        boolean removed = pendingMigrations.removeIf(c -> c.getContainerId().equals(containerId));
+        if (removed) {
+            MetricsRegistry.collector().markTaskPending(containerId, null, false, CloudSim.clock());
+        }
     }
 
     private void retryPendingMigrations() {
@@ -770,6 +814,7 @@ public class FogNodeController extends FogDevice {
         for (int i = 0; i < attempts; i++) {
             ContainerModule container = pendingMigrations.poll();
             if (container != null) {
+                MetricsRegistry.collector().markTaskPending(container, "retry", false, CloudSim.clock());
                 migrateContainer(container, container.getMigrationTrigger().isEmpty() ? "queued_retry" : container.getMigrationTrigger());
             }
         }

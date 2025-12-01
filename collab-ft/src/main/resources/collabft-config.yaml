@@ -1,7 +1,7 @@
 simulation:
   mode: 1
   seed: 42
-  durationSeconds: 3600
+  durationSeconds: 36000
 
 gossip:
   enabled: true
@@ -10,8 +10,8 @@ gossip:
 
 fault:
   predictionLeadSeconds: 300          # Enough time to allow some local recovery, but not trivial
-  meanTimeBetweenFailureSeconds: 60  # Fewer overlapping faults → reduces excessive local_infeasible
-  startDelaySeconds: 30
+  meanTimeBetweenFailureSeconds: 600  # Fewer overlapping faults → reduces excessive local_infeasible
+  startDelaySeconds: 300
   recoverySeconds: 240               # Recovery still meaningful under load
   cpuFailureProb: 0.33
   bandwidthDegradationProb: 0.34
@@ -22,6 +22,7 @@ bidding:
   pauseSeconds: 1.5
   resumeSeconds: 1.5
   resourceImpactK: 0.6
+  bidTimeoutSeconds: 30
 
 trust:
   enableTrust: true

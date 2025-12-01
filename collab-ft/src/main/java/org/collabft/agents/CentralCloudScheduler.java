@@ -61,6 +61,7 @@ public class CentralCloudScheduler extends SimEntity {
                     best.bidValue(),
                     CloudSim.clock());
             container.recordLastBid(best.controller().getId(), best.bidValue());
+            MetricsRegistry.collector().markTaskMigrating(container, best.controller().getName(), container.getMigrationTrigger(), CloudSim.clock());
             send(best.controller().getId(), 0, CollabSimTags.MIGRATION_START,
                     new MigrationTransfer(container, request.getOriginId(), sourceName(container, request.getOriginId()), MetricsCollector.MigrationKind.INTER_FOG,
                             best.linkBandwidth(), network.getInterFogLatencyMs() / 1000.0, container.getMigrationTrigger()));
@@ -77,6 +78,7 @@ public class CentralCloudScheduler extends SimEntity {
                     migrationTime,
                     CloudSim.clock());
             container.recordLastBid(cloud.getId(), migrationTime);
+            MetricsRegistry.collector().markTaskMigrating(container, cloud.getName(), container.getMigrationTrigger(), CloudSim.clock());
             send(cloud.getId(), 0, CollabSimTags.MIGRATION_START,
                     new MigrationTransfer(container, request.getOriginId(), sourceName(container, request.getOriginId()), MetricsCollector.MigrationKind.CLOUD,
                             linkBw,

@@ -94,6 +94,13 @@ public class BidManager {
         return bid == null ? Collections.emptySet() : new HashSet<>(bid.pending);
     }
 
+    public void expirePending(String containerId) {
+        PendingBid bid = pending.get(containerId);
+        if (bid != null) {
+            bid.pending.clear();
+        }
+    }
+
     public void clearWinner(String containerId) {
         winners.remove(containerId);
     }
