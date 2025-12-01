@@ -26,6 +26,7 @@ bidding:
   resumeSeconds: 1.5
   resourceImpactK: 0.6
   bidTimeoutSeconds: 30
+  retryMigrationSeconds: 1.0
 
 trust:
   enableTrust: true

@@ -101,6 +101,7 @@ public class FogNodeController extends FogDevice {
                     send(getId(), retrySec, org.collabft.events.CollabSimTags.INITIAL_PLACEMENT_RETRY, null);
                 }
             }
+            case MIGRATION_RETRY -> retryPendingMigrationsScheduled();
             case GOSSIP_EVENT -> handleGossip(ev);
             case TASK_COMPLETE -> handleTaskComplete(ev);
             default -> {
@@ -813,6 +814,11 @@ public class FogNodeController extends FogDevice {
             pendingMigrations.add(container);
             String detail = container.getMigrationTrigger().isEmpty() ? "pending" : container.getMigrationTrigger();
             MetricsRegistry.collector().markTaskPending(container, detail, true, CloudSim.clock());
+            // schedule periodic retry for pending migrations
+            double retrySec = config.getBidding().getRetryMigrationSeconds();
+            if (retrySec > 0) {
+                send(getId(), retrySec, CollabSimTags.MIGRATION_RETRY, null);
+            }
         }
     }
 
@@ -833,6 +839,21 @@ public class FogNodeController extends FogDevice {
             if (container != null) {
                 MetricsRegistry.collector().markTaskPending(container, "retry", false, CloudSim.clock());
                 migrateContainer(container, container.getMigrationTrigger().isEmpty() ? "queued_retry" : container.getMigrationTrigger());
+            }
+        }
+    }
+
+    private void retryPendingMigrationsScheduled() {
+        if (pendingMigrations.isEmpty()) {
+            return;
+        }
+        // Retry all pending migrations
+        retryPendingMigrations();
+        // Reschedule if there are still pending migrations
+        if (!pendingMigrations.isEmpty()) {
+            double retrySec = config.getBidding().getRetryMigrationSeconds();
+            if (retrySec > 0) {
+                send(getId(), retrySec, CollabSimTags.MIGRATION_RETRY, null);
             }
         }
     }

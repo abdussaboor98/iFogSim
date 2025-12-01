@@ -17,6 +17,7 @@ public enum CollabSimTags implements CloudSimTags {
     MIGRATION_START,
     MIGRATION_FINISH,
     INITIAL_PLACEMENT_RETRY,
+    MIGRATION_RETRY,
     TASK_COMPLETE,
     PAYMENT_EVENT,
     GOSSIP_TICK,

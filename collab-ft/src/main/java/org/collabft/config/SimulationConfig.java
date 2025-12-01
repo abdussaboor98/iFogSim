@@ -233,6 +233,7 @@ public class SimulationConfig {
         private double resourceImpactK = 0.5;
         private int maxFogBidders = 3;
         private double bidTimeoutSeconds = 30.0;
+        private double retryMigrationSeconds = 1.0;
 
         public double getPauseSeconds() {
             return pauseSeconds;
@@ -279,6 +280,14 @@ public class SimulationConfig {
 
         public void setBidTimeoutSeconds(double bidTimeoutSeconds) {
             this.bidTimeoutSeconds = bidTimeoutSeconds;
+        }
+
+        public double getRetryMigrationSeconds() {
+            return retryMigrationSeconds;
+        }
+
+        public void setRetryMigrationSeconds(double retryMigrationSeconds) {
+            this.retryMigrationSeconds = retryMigrationSeconds;
         }
     }
 
