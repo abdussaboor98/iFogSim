@@ -624,15 +624,117 @@ Send \texttt{MIGRATION\_FINISH} back to origin for payment settlement.
 
 \subsection{Payment Settlement}
 
-If migrated to different node:
+\subsubsection{Payment Calculation with Penalty}
+
+Payment is calculated with penalties for dishonesty and SLA violations using a simple linear deduction formula:
+
+\begin{equation}
+    P_{\text{final}} = \max(0, P_{\text{bid}} - P_{\text{lie}} - P_{\text{sla}})
+\end{equation}
+
+where:
 \begin{itemize}
-    \item \textbf{Payment Amount} = BidValue (from winning bid)
+    \item $P_{\text{bid}}$ is the original bid value
+    \item $P_{\text{lie}}$ is the penalty for dishonesty
+    \item $P_{\text{sla}}$ is the penalty for SLA violations
+\end{itemize}
+
+\subsubsection{Payment Penalty Components}
+
+\textbf{Dishonesty Penalty:}
+\begin{equation}
+    P_{\text{lie}} = \lambda (e_{bw} + e_{mig})
+\end{equation}
+
+where:
+\begin{itemize}
+    \item $\lambda$ is the dishonesty penalty coefficient (default: 0.25)
+    \item $e_{bw}$ is the bandwidth error (relative)
+    \item $e_{mig}$ is the migration time error (relative)
+\end{itemize}
+
+\textbf{SLA Penalty:}
+\begin{equation}
+    P_{\text{sla}} = \mu \cdot \max(0, -m_{sla})
+\end{equation}
+
+where:
+\begin{itemize}
+    \item $\mu$ is the SLA penalty coefficient (default: 0.25)
+    \item $m_{sla}$ is the normalized SLA margin (negative when violated)
+\end{itemize}
+
+\subsubsection{Configuration Parameters}
+
+Only two scalar parameters control the payment penalty system:
+\begin{align}
+    \lambda &= 0.25 \text{ (controls dishonesty penalties)} \\
+    \mu &= 0.25 \text{ (controls SLA penalties)}
+\end{align}
+
+\subsubsection{Payment Penalty Examples}
+
+\textbf{Example 1: Perfect Performance}
+\begin{itemize}
+    \item Errors: $e_{bw} = 0.1$, $e_{mig} = 0.2$, $m_{sla} = 0.15$ (15\% early)
+    \item $P_{\text{lie}} = 0.25 \times (0.1 + 0.2) = 0.075$
+    \item $P_{\text{sla}} = 0.25 \times \max(0, -0.15) = 0$
+    \item Final payment: $P_{\text{final}} = P_{\text{bid}} - 0.075 - 0 = 0.925 \cdot P_{\text{bid}}$ (92.5\% of bid)
+\end{itemize}
+
+\textbf{Example 2: High Dishonesty}
+\begin{itemize}
+    \item Errors: $e_{bw} = 0.5$, $e_{mig} = 0.8$, $m_{sla} = 0.05$ (5\% early)
+    \item $P_{\text{lie}} = 0.25 \times (0.5 + 0.8) = 0.325$
+    \item $P_{\text{sla}} = 0.25 \times \max(0, -0.05) = 0$
+    \item Final payment: $P_{\text{final}} = P_{\text{bid}} - 0.325 = 0.675 \cdot P_{\text{bid}}$ (67.5\% of bid)
+\end{itemize}
+
+\textbf{Example 3: SLA Violation}
+\begin{itemize}
+    \item Errors: $e_{bw} = 0.1$, $e_{mig} = 0.15$, $m_{sla} = -0.2$ (20\% late)
+    \item $P_{\text{lie}} = 0.25 \times (0.1 + 0.15) = 0.0625$
+    \item $P_{\text{sla}} = 0.25 \times \max(0, 0.2) = 0.05$
+    \item Final payment: $P_{\text{final}} = P_{\text{bid}} - 0.0625 - 0.05 = 0.8875 \cdot P_{\text{bid}}$ (88.75\% of bid)
+\end{itemize}
+
+\textbf{Example 4: Extreme Violations}
+\begin{itemize}
+    \item Errors: $e_{bw} = 2.0$, $e_{mig} = 1.5$, $m_{sla} = -0.5$ (50\% late)
+    \item $P_{\text{lie}} = 0.25 \times (2.0 + 1.5) = 0.875$
+    \item $P_{\text{sla}} = 0.25 \times \max(0, 0.5) = 0.125$
+    \item Total penalty: $0.875 + 0.125 = 1.0$
+    \item Final payment: $P_{\text{final}} = \max(0, P_{\text{bid}} - 1.0) = 0$ (no payment if $P_{\text{bid}} \leq 1.0$)
+\end{itemize}
+
+\subsubsection{Token Transfer}
+
+If final payment is positive:
+\begin{itemize}
     \item \textbf{Transfer}:
     \begin{itemize}
-        \item Debit: Owner fog node
-        \item Credit: Winner fog node
+        \item Debit: Owner fog node loses $P_{\text{final}}$ tokens
+        \item Credit: Winner fog node gains $P_{\text{final}}$ tokens
     \end{itemize}
 \end{itemize}
+
+\subsubsection{Rationale for Payment Penalties}
+
+The payment penalty mechanism provides immediate economic consequences for poor performance:
+
+\begin{enumerate}
+    \item \textbf{Direct Financial Impact}: Unlike trust penalties which affect future bid competitiveness, payment penalties directly reduce earnings for the current task. This creates stronger incentives for honest behavior.
+    
+    \item \textbf{Dual Penalty System}: Combining trust penalties (long-term reputation damage) with payment penalties (immediate financial loss) creates a comprehensive incentive structure that discourages dishonesty both in the short term and long term.
+    
+    \item \textbf{Multiplicative for Dishonesty}: Bandwidth and migration dishonesty use multiplicative penalties (50\% each), so combined dishonesty results in 75\% reduction ($0.5 \times 0.5 = 0.25$, keeping 25\%).
+    
+    \item \textbf{Additive for SLA}: SLA violation uses additive penalty (30\% reduction) because it may result from resource contention rather than intentional dishonesty.
+    
+    \item \textbf{Zero Payment Floor}: The worst-case scenario (all three violations) results in zero payment, not negative payment. This prevents nodes from owing money for failed tasks.
+    
+    \item \textbf{Token Conservation}: The payment penalty system reduces token flow from task owners to fog nodes, effectively penalizing poor performers while preserving token balances for honest nodes.
+\end{enumerate}
 
 \section{Trust-Based Reputation System}
 
@@ -889,9 +991,9 @@ This economic penalty incentivizes honest reporting without hard exclusion (exce
 
 \subsection{Trust Recovery Mechanism}
 
-\subsubsection{Recovery After Honest Behavior}
+\subsubsection{Active Recovery After Honest Behavior}
 
-The additive recovery ensures trust can increase over time:
+The additive recovery ensures trust can increase over time when nodes perform well:
 \begin{equation}
     t_{recovered} = \min(1.0, t_{current} + \beta_{success})
 \end{equation}
@@ -912,6 +1014,60 @@ Recovery trajectory with consistent honest behavior ($\beta_{success} = 0.02$ pe
 \end{align}
 
 Recovery to threshold: 15 honest tasks required.
+
+\subsubsection{Passive Trust Recovery}
+
+In addition to active recovery through honest performance, trust also improves passively over time to give nodes opportunities to rejoin the system after periods of inactivity. The recovery magnitude is proportional to the distance to perfect trust (1.0):
+
+\begin{equation}
+    t_{passive}(i, t) = \min(1.0, t(i) + r_{passive} \times (1.0 - t(i)))
+\end{equation}
+
+where $r_{passive}$ is the recovery rate applied at regular time intervals $\Delta t_{passive}$.
+
+\textbf{Passive Recovery Parameters}:
+\begin{align}
+    r_{passive} &= 0.02 \text{ (1-3\% of distance to 1.0 per interval)} \\
+    \Delta t_{passive} &= 21 \text{ seconds (every gossip cycle } \times 3 = 7s \times 3)
+\end{align}
+
+\textbf{Passive Recovery Characteristics}:
+\begin{enumerate}
+    \item \textbf{Time-Based}: Applied every 3 gossip cycles (21 seconds)
+    \item \textbf{Distance-Proportional}: Recovery slows as trust approaches 1.0, preventing overshooting
+    \item \textbf{Small Scale}: 1-3\% of remaining distance ensures gradual improvement
+    \item \textbf{Universal}: Applies to all nodes with trust records
+    \item \textbf{Complementary}: Works alongside active recovery from honest behavior
+\end{enumerate}
+
+\textbf{Example Passive Recovery Timeline}:
+
+For a node with $t_0 = 0.4$ that stops participating:
+\begin{align}
+    t_1 &= 0.4 + 0.02 \times (1.0 - 0.4) = 0.4 + 0.012 = 0.412 \\
+    t_2 &= 0.412 + 0.02 \times (1.0 - 0.412) = 0.412 + 0.01176 = 0.424 \\
+    t_5 &\approx 0.463 \\
+    t_{10} &\approx 0.510 \text{ (crosses threshold)} \\
+    t_{20} &\approx 0.587 \\
+    t_{50} &\approx 0.728
+\end{align}
+
+Time to recover from 0.4 to threshold (0.5): approximately 10 intervals = 210 seconds (3.5 minutes).
+
+As trust approaches 1.0, recovery becomes progressively slower:
+\begin{align}
+    t = 0.4 &\rightarrow \text{increment } = 0.012 \text{ (1.2\%)} \\
+    t = 0.7 &\rightarrow \text{increment } = 0.006 \text{ (0.6\%)} \\
+    t = 0.9 &\rightarrow \text{increment } = 0.002 \text{ (0.2\%)}
+\end{align}
+
+\textbf{Rationale for Passive Recovery}:
+\begin{itemize}
+    \item \textbf{Second Chances}: Nodes excluded due to low trust can eventually rejoin without manual intervention
+    \item \textbf{Transient Faults}: Temporary issues (network congestion, hardware glitches) don't permanently ban nodes
+    \item \textbf{Balanced Forgiveness}: Very slow rate prevents rapid recovery after intentional dishonesty while allowing gradual redemption
+    \item \textbf{System Resilience}: Ensures fog infrastructure doesn't permanently lose capacity from temporarily problematic nodes
+\end{itemize}
 
 \subsection{Trust Metric Types}
 

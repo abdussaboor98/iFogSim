@@ -33,6 +33,10 @@ trust:
   tauSla: 0.3
   slaSuccessBonus: 0.02
   slaViolationPenalty: 0.10
+  paymentPenaltyLambda: 0.25  # λ controls dishonesty penalties: P_lie = λ(e_bw + e_mig)
+  paymentPenaltyMu: 0.10      # μ controls SLA penalties: P_sla = μ·max(0, -m_sla)
+  passiveRecoveryRate: 0.01   # 1-3% of distance to 1.0
+  passiveRecoveryInterval: 21  # Every gossip cycle × 3 (7s × 3 = 21s)
 
 sla:
   slackRatio: 0.06                # A bit more realistic than 0.02; reduces excessive misses

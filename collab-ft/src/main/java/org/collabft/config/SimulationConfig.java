@@ -295,6 +295,10 @@ public class SimulationConfig {
         private double tauSla = 0.1;
         private double slaSuccessBonus = 0.02;
         private double slaViolationPenalty = 0.10;
+        private double paymentPenaltyLambda = 0.25;
+        private double paymentPenaltyMu = 0.25;
+        private double passiveRecoveryRate = 0.02;
+        private double passiveRecoveryInterval = 21;
 
         public boolean isEnableTrust() {
             return enableTrust;
@@ -366,6 +370,38 @@ public class SimulationConfig {
 
         public void setSlaViolationPenalty(double slaViolationPenalty) {
             this.slaViolationPenalty = slaViolationPenalty;
+        }
+
+        public double getPaymentPenaltyLambda() {
+            return paymentPenaltyLambda;
+        }
+
+        public void setPaymentPenaltyLambda(double paymentPenaltyLambda) {
+            this.paymentPenaltyLambda = paymentPenaltyLambda;
+        }
+
+        public double getPaymentPenaltyMu() {
+            return paymentPenaltyMu;
+        }
+
+        public void setPaymentPenaltyMu(double paymentPenaltyMu) {
+            this.paymentPenaltyMu = paymentPenaltyMu;
+        }
+
+        public double getPassiveRecoveryRate() {
+            return passiveRecoveryRate;
+        }
+
+        public void setPassiveRecoveryRate(double passiveRecoveryRate) {
+            this.passiveRecoveryRate = passiveRecoveryRate;
+        }
+
+        public double getPassiveRecoveryInterval() {
+            return passiveRecoveryInterval;
+        }
+
+        public void setPassiveRecoveryInterval(double passiveRecoveryInterval) {
+            this.passiveRecoveryInterval = passiveRecoveryInterval;
         }
     }
 

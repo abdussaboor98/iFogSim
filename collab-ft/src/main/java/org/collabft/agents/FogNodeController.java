@@ -68,7 +68,9 @@ public class FogNodeController extends FogDevice {
                 config.getTrust().isEnableTrust(),
                 config.getTrust().getTrustDecayFactor(),
                 config.getTrust().getTrustRecoveryFactor(),
-                config.getTrust().getTrustThreshold());
+                config.getTrust().getTrustThreshold(),
+                config.getTrust().getPassiveRecoveryRate(),
+                config.getTrust().getPassiveRecoveryInterval());
         registerCapacity();
     }
 
@@ -648,6 +650,9 @@ public class FogNodeController extends FogDevice {
     }
 
     private void settleSlaAndPayment(ContainerModule container, double finishTime, String finishFog) {
+        // Apply passive trust recovery for all nodes at settlement time
+        trustManager.applyPassiveRecoveryAll(CloudSim.clock());
+        
         double completionTime = finishTime;
         double makespan = completionTime - container.getArrivalTime();
         boolean slaMet = completionTime <= container.getDeadlineSeconds();
@@ -670,9 +675,10 @@ public class FogNodeController extends FogDevice {
         
         // Combined trust evaluation: bandwidth + migration time + SLA outcome
         double trustAfterSla = trustBefore;
+        double slaMarginRatio = 0.0;
         if (config.getTrust().isEnableTrust() && payeeId >= 0 && payeeId != cloudId) {
             double slaMargin = container.getDeadlineSeconds() - completionTime; // Positive = met with margin
-            double slaMarginRatio = slaMargin / Math.max(1e-6, container.getDeadlineSeconds());
+            slaMarginRatio = slaMargin / Math.max(1e-6, container.getDeadlineSeconds());
             
             trustAfterSla = trustManager.evaluateAndAdjust(
                 payeeId,
@@ -684,7 +690,24 @@ public class FogNodeController extends FogDevice {
                 config.getTrust().getSlaViolationPenalty());
         }
 
-        double payment = (payeeId >= 0 && payeeId != container.getOwnerId()) ? bidValue : 0;
+        // Calculate payment with penalty: Payment = max(0, BidValue - P_lie - P_sla)
+        double payment = 0;
+        if (payeeId >= 0 && payeeId != container.getOwnerId()) {
+            if (config.getTrust().isEnableTrust() && payeeId != cloudId) {
+                // P_lie = λ(e_bw + e_mig)
+                double lambda = config.getTrust().getPaymentPenaltyLambda();
+                double pLie = lambda * (errBw + errMig);
+                
+                // P_sla = μ·max(0, -m_sla)
+                double mu = config.getTrust().getPaymentPenaltyMu();
+                double pSla = mu * Math.max(0, -slaMarginRatio);
+                
+                // Payment = max(0, BidValue - P_lie - P_sla)
+                payment = Math.max(0, bidValue - pLie - pSla);
+            } else {
+                payment = bidValue;
+            }
+        }
         MetricsRegistry.collector().recordSla(
                 container.getContainerId(),
                 container.getOriginatingEdge(),

@@ -8,16 +8,22 @@ import java.util.Map;
  */
 public class TrustManager {
     private final Map<Integer, Double> trust = new HashMap<>();
+    private final Map<Integer, Double> lastPassiveRecovery = new HashMap<>();
     private final boolean enabled;
     private final double decayFactor;
     private final double recoveryFactor;
     private final double threshold;
+    private final double passiveRecoveryRate;
+    private final double passiveRecoveryInterval;
 
-    public TrustManager(boolean enabled, double decayFactor, double recoveryFactor, double threshold) {
+    public TrustManager(boolean enabled, double decayFactor, double recoveryFactor, double threshold,
+                        double passiveRecoveryRate, double passiveRecoveryInterval) {
         this.enabled = enabled;
         this.decayFactor = decayFactor;
         this.recoveryFactor = recoveryFactor;
         this.threshold = threshold;
+        this.passiveRecoveryRate = passiveRecoveryRate;
+        this.passiveRecoveryInterval = passiveRecoveryInterval;
     }
 
     public double current(int fogId) {
@@ -94,6 +100,47 @@ public class TrustManager {
 
     public boolean passesThreshold(int fogId) {
         return !enabled || current(fogId) >= threshold;
+    }
+
+    /**
+     * Apply passive trust recovery if enough time has passed since last recovery.
+     * Recovery magnitude is passiveRecoveryRate percent of the distance to 1.0.
+     * @param fogId The fog node to potentially recover trust for
+     * @param currentTime Current simulation time in seconds
+     * @return Updated trust value (or unchanged if interval not met)
+     */
+    public double applyPassiveRecovery(int fogId, double currentTime) {
+        if (!enabled || passiveRecoveryRate <= 0) {
+            return current(fogId);
+        }
+        
+        double lastRecovery = lastPassiveRecovery.getOrDefault(fogId, 0.0);
+        if (currentTime - lastRecovery >= passiveRecoveryInterval) {
+            double currentTrust = current(fogId);
+            // Recovery = passiveRecoveryRate% of distance to 1.0
+            double distanceTo1 = 1.0 - currentTrust;
+            double increment = passiveRecoveryRate * distanceTo1;
+            double updated = clamp(currentTrust + increment);
+            trust.put(fogId, updated);
+            lastPassiveRecovery.put(fogId, currentTime);
+            return updated;
+        }
+        
+        return current(fogId);
+    }
+
+    /**
+     * Apply passive recovery to all nodes that have trust records.
+     * @param currentTime Current simulation time in seconds
+     */
+    public void applyPassiveRecoveryAll(double currentTime) {
+        if (!enabled || passiveRecoveryRate <= 0) {
+            return;
+        }
+        
+        for (int fogId : trust.keySet()) {
+            applyPassiveRecovery(fogId, currentTime);
+        }
     }
 
     private double clamp(double value) {
