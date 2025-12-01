@@ -1,0 +1,798 @@
+\documentclass{article}
+\usepackage{arxiv}
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{lipsum}
+\usepackage{graphicx}
+\usepackage{IEEEtrantools}
+\usepackage[noadjust]{cite}
+\graphicspath{ {./images/} }
+\usepackage{amsmath}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+
+\title{Collaborative Fautl Tolerance in Fog Computing using reverse auction and gossip}
+
+
+\author{
+ Abdus Saboor Gaffari \\
+  Department of Computer Science and Engineering\\
+  College of Engineering\\
+  American University of Sharjah\\
+  Sharjah, UAE \\
+  \texttt{b00105302@aus.edu} \\
+   \And
+ Solomon Ghebretatios \\
+  Department of Computer Science and Engineering\\
+  College of Engineering\\
+  American University of Sharjah\\
+  Sharjah, UAE \\
+  \texttt{b00104390@aus.edu} \\
+  \And
+ Affan Murtaza \\
+  Department of Computer Science and Engineering\\
+  College of Engineering\\
+  American University of Sharjah\\
+  Sharjah, UAE \\
+  \texttt{b00104949@aus.edu} \\
+  %% \AND
+  %% Coauthor \\
+  %% Affiliation \\
+  %% Address \\
+  %% \texttt{email} \\
+  %% \And
+  %% Coauthor \\
+  %% Affiliation \\
+  %% Address \\
+  %% \texttt{email} \\
+  %% \And
+  %% Coauthor \\
+  %% Affiliation \\
+  %% Address \\
+  %% \texttt{email} \\
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\lipsum[10]
+\end{abstract}
+
+
+% keywords can be removed
+%\keywords{First keyword \and Second keyword \and More}
+
+
+\section{Introduction}
+
+\section{Related Work} \label{sec:related}
+
+\section{Methodology / Materials and Methods}
+
+\subsection{Proposed Approach}
+The proposed framework introduces a collaborative fault-tolerant model for fog computing in which autonomous fog nodes cooperate to maintain service continuity when failures are predicted or detected. The system operates within a multi-tier edge–fog–cloud hierarchy, where fog nodes act as the primary execution layer and collaborate only when necessary, without relying on any centralized controller or forced offloading. Collaboration emerges through decentralized, voluntary interactions between independently administered fog nodes, enabling both proactive FT through early migration and reactive FT when faults occur unexpectedly.
+
+Two core mechanisms underpin the collaborative behavior. First, a gossip-based state dissemination protocol allows each fog node to gradually build an eventually complete and consistent view of the global resource state. By exchanging periodic summaries of CPU, memory, and bandwidth loads across a lightweight logical topology, fog nodes gain situational awareness without broadcasting costly global messages. This state is not required to be perfectly synchronized; instead, it serves as a sufficiently accurate substrate for decentralized decision-making during fault recovery. Second, a reverse-auction mechanism enables multi-owner fog nodes to negotiate container placements when local recovery is not possible. A node experiencing a predicted or actual fault initiates an auction in which candidate fog nodes respond with bids reflecting their capacity and estimated migration cost. Collaborative FT emerges because nodes voluntarily participate, compete, and are compensated for accepting foreign containers, unlike forced or centrally dictated offloading.
+
+The fault-tolerance workflow operates through a concise three-stage migration strategy: (i) intra-fog migration attempts to relocate containers within the same fog node whenever a healthy server is available; (ii) if local recovery is infeasible, inter-fog migration is triggered, where candidate fog nodes are evaluated using gossip-informed scoring and reverse-auction bidding; and (iii) if no suitable collaborator exists, the task is escalated to the cloud as a final fallback.
+
+The framework executes tasks in lightweight, migratable containers to allow seamless pausing, checkpointing, transfer, and resumption across servers or fog nodes. This ensures that when a fault is predicted, all containers on the affected server are immediately checkpointed and migrated. If an unexpected fault occurs, the resulting behavior depends on the fault type: CPU and bandwidth degradations still permit checkpointing, whereas crashes cause complete loss of progress, requiring immediate restart elsewhere.
+
+By combining container-based execution, gossip-driven distributed awareness, and reverse-auction–based negotiation, the proposed system provides a decentralized, prediction-aware, and economically aligned FT architecture suitable for heterogeneous, multi-owner fog environments.
+
+\subsection{System Model}
+The system consists of three interconnected layers: edge devices, fog nodes, and a cloud layer that provides a global but slower and more resource-intensive fallback. As shown in the architectural model, each fog node hosts multiple heterogeneous servers managed by a local control layer and an FT predictor module. The fog layer forms the main execution substrate, processing tasks originating from stationary edge devices. These devices continuously generate indivisible tasks that must run to completion and therefore cannot be split or distributed across servers. Each task executes inside a dedicated container, and each server can host multiple such containers concurrently, constrained only by its CPU, RAM, and bandwidth capacities. Containers can be paused, checkpointed, migrated, and resumed across any fog server or cloud resource, allowing mobility in response to failures.
+
+The system assumes a multi-owner fog environment, where each fog node is controlled by an independent administrator. Nodes may strategically misreport internal metrics such as CPU load, memory usage, bandwidth availability, or expected migration time. However, they cannot fake observable outcomes, including actual migration duration, SLA adherence, or execution-time overload. This distinction is essential: misreporting affects negotiation, but actual behavior determines accountability. The framework embeds this assumption directly into its FT logic rather than treating it as an external constraint.
+
+Tasks arriving at a fog node are placed onto the best available server based on that node’s own local scheduling policy. The proposed FT framework does not modify this placement algorithm; instead, it activates only when faults occur or are predicted. The FT predictor is assumed to exist and guarantees perfect predictions: no false positives or false negatives. Thus, every predicted fault will occur, and any server not flagged by the predictor is considered safe until a new prediction arises.
+
+Three types of faults are considered: CPU degradation, bandwidth degradation, and server crash. While these faults differ in operational impact, the FT model treats them uniformly in terms of triggering migration, except for one distinction: crashes render servers completely inaccessible, causing absolute loss of container progress, whereas degradations allow checkpointing before migration. The fog-to-cloud communication path exhibits significantly higher latency and lower bandwidth than inter-fog communication links, reinforcing the preference for local or inter-fog recovery before escalating to the cloud.
+
+This system model enables decentralized interaction among fog nodes, preserves each operator’s autonomy, supports truthful or untruthful behavior within defined limits, and leverages containerization to provide strong fault-migration guarantees across the hierarchy.
+
+\subsection{Gossip Protocol}
+
+The proposed collaborative FT system requires a lightweight and scalable mechanism for disseminating resource information among fog nodes, since no central coordinator is available to maintain global visibility. To meet this requirement, the framework adopts an eventual-consistency gossip process that enables each fog node to maintain an approximate yet sufficiently current understanding of cluster-wide resource availability without resorting to full broadcast. This is essential because the architecture must support multi-owner environments where information exchange cannot impose excessive overhead or rely on full-system synchronization.
+
+In this design, each fog node periodically snapshots its internal load conditions using the normalized CPU, memory, and bandwidth loads  
+\begin{equation}
+L^{i}_{cpu}=\frac{\sum_{s\in S_i}U^{s}_{cpu}}{\sum_{s\in S_i}C^{s}_{cpu}}
+\label{eq:gossip_cpu}
+\end{equation}
+\begin{equation}
+L^{i}_{mem}=\frac{\sum_{s\in S_i}U^{s}_{mem}}{\sum_{s\in S_i}C^{s}_{mem}}
+\label{eq:gossip_mem}
+\end{equation}
+\begin{equation}
+L^{i}_{bw}=\frac{\sum_{s\in S_i}U^{s}_{bw}}{\sum_{s\in S_i}C^{s}_{bw}}
+\label{eq:gossip_bw}
+\end{equation}
+and encapsulates them with a timestamp before forwarding the entry to its designated ring neighbor. The choice of a ring topology in our proposed system is deliberate: it limits each gossip cycle to a single outbound exchange, thereby reducing the probability of network storms while still ensuring that resource information propagates across the fog layer over successive rounds. Algorithm~\ref{alg:gossip} presents the complete gossip dissemination process executed periodically at each fog node.
+
+Since fog nodes belong to independent owners, the proposed system also allows the possibility of strategic misreporting within gossip exchanges. A node may intentionally publish understated load values in an attempt to attract incoming containers. However, the architecture is designed so that such misrepresentation becomes detectable indirectly through the trust scoring mechanism, where SLA performance and actual migration behavior reveal inconsistencies between claimed and observed behavior. The gossip process therefore functions as a decentralized substrate that the proposed collaborative FT system depends upon, not because it enforces honesty outright, but because it provides enough distributed visibility for reverse auction and trust scoring to operate effectively.
+
+\begin{algorithm}[t]
+\caption{Gossip State Dissemination at Fog Node $i$}
+\label{alg:gossip}
+\begin{algorithmic}[1]
+\State \textbf{Input:} Set of servers $S_i$, state table $StateTable_i$, neighbor list $N_i$, current time $t$
+\State \textbf{Output:} Updated state tables at neighboring fog nodes
+\State
+\State \textit{// Compute local load snapshot}
+\State $activeServers \gets 0$
+\State $L^{i}_{cpu} \gets 0$, $L^{i}_{mem} \gets 0$, $L^{i}_{bw} \gets 0$
+\For{each server $s \in S_i$}
+    \If{$s$ is not faulted and not predicted to fail}
+        \State $L^{i}_{cpu} \gets L^{i}_{cpu} + \frac{U^{s}_{cpu}}{C^{s}_{cpu}}$
+        \State $L^{i}_{mem} \gets L^{i}_{mem} + \frac{U^{s}_{mem}}{C^{s}_{mem}}$
+        \State $L^{i}_{bw} \gets L^{i}_{bw} + \frac{U^{s}_{bw}}{C^{s}_{bw}}$
+        \State $activeServers \gets activeServers + 1$
+    \EndIf
+\EndFor
+\If{$activeServers > 0$}
+    \State $L^{i}_{cpu} \gets L^{i}_{cpu} / activeServers$
+    \State $L^{i}_{mem} \gets L^{i}_{mem} / activeServers$
+    \State $L^{i}_{bw} \gets L^{i}_{bw} / activeServers$
+\Else
+    \State $L^{i}_{cpu} \gets 1$, $L^{i}_{mem} \gets 1$, $L^{i}_{bw} \gets 1$
+\EndIf
+\State
+\State \textit{// Create local state entry with timestamp}
+\State $entry_i \gets \text{GossipStateEntry}(L^{i}_{cpu}, L^{i}_{mem}, L^{i}_{bw}, t)$
+\State $StateTable_i[i] \gets entry_i$
+\State
+\State \textit{// Propagate state table to ring neighbors}
+\For{each neighbor $j \in N_i$}
+    \State Send $StateTable_i$ to fog node $j$
+\EndFor
+\State
+\State \textit{// Upon receiving state table $StateTable_k$ from fog node $k$:}
+\For{each entry $(nodeId, state) \in StateTable_k$}
+    \If{$nodeId \notin StateTable_i$ or $state.timestamp > StateTable_i[nodeId].timestamp$}
+        \State $StateTable_i[nodeId] \gets state$
+    \EndIf
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Reverse Auction for Collaborative Migration}
+
+To support voluntary cooperation between independently administered fog nodes, the proposed framework relies on a reverse-auction mechanism for inter-fog migration decisions. This is necessary because no fog node can be compelled to accept external work, and because multi-owner environments require a structured negotiation protocol rather than centralized placement. The reverse auction creates an economic and operational interface through which candidate nodes express their willingness to host an incoming container and articulate the cost associated with doing so.
+
+When a predicted or detected fault prevents local recovery, the originating fog node issues a migration request to selected candidates determined via gossip-based scoring. Each candidate evaluates the request by estimating its migration cost, beginning with a claimed migration time  
+\begin{equation}
+T^{claimed}_{mig}=t_{pause}+\frac{S_{container}}{Claimed_{bw}/8}+t_{resume}
+\label{eq:claimed_mig}
+\end{equation}
+where \(Claimed_{bw}\) represents the bandwidth the node asserts it can provide. The second component of the bid measures the resource impact of hosting the container according to the formulation  
+\begin{equation}
+Impact=\frac{R_{cpu}}{C_{cpu}}+\frac{R_{mem}}{C_{mem}}+\frac{R_{bw}}{Claimed_{bw}}
+\label{eq:impact}
+\end{equation}
+leading to the bid  
+\begin{equation}
+Bid_{value}=T^{claimed}_{mig}+k\cdot Impact
+\label{eq:bid_value}
+\end{equation}
+This structure is central to the proposed system because it integrates both migration overhead and local resource pressure into a unified cost, permitting fog nodes with limited capacity to discourage additional workload through naturally higher bids. Algorithm~\ref{alg:bid_calculation} formalizes the bid construction process at each candidate fog node.
+
+Bid evaluation at the origin fog node incorporates the trust mechanism, which the proposed system uses to correct for the possibility of dishonest reporting. The effective bid  
+\begin{equation}
+Bid^{eff}(i)=\frac{Bid_{value}(i)}{\max(\varepsilon,t(i))}
+\label{eq:effective_bid}
+\end{equation}
+ensures that nodes with lower trust appear more expensive, thereby reducing their chances of being selected. This aligns incentives: fog nodes that consistently misreport resources or migration conditions become less competitive over time, while reliable nodes gradually dominate the market for hosting tasks. The reverse auction, combined with trust-adjusted bidding, thus provides the collaborative backbone required for decentralized FT, enabling safe, incentive-compatible inter-fog cooperation. The complete bid evaluation and winner selection procedure at the origin node is detailed in Algorithm~\ref{alg:bid_selection}.
+
+\begin{algorithm}[t]
+\caption{Bid Calculation at Candidate Fog Node $i$}
+\label{alg:bid_calculation}
+\begin{algorithmic}[1]
+\State \textbf{Input:} Migration request for container $c$ from origin fog node $j$
+\State \textbf{Output:} Bid response containing feasibility and bid value
+\State
+\State \textit{// Retrieve container requirements}
+\State $R_{cpu} \gets c.demandMips$
+\State $R_{mem} \gets c.ramMb$
+\State $R_{bw} \gets c.bandwidth$
+\State $S_{container} \gets c.containerSizeMb$
+\State $D_{sla} \gets c.deadlineSeconds$
+\State
+\State \textit{// Compute claimed migration time}
+\State $Claimed_{bw} \gets$ available bandwidth to fog node $j$ (may be strategically reported)
+\State $T_{transfer} \gets S_{container} / (Claimed_{bw} / 8)$
+\State $T^{claimed}_{mig} \gets t_{pause} + T_{transfer} + t_{resume}$
+\State
+\State \textit{// Compute projected resource load}
+\State $L_{cpu} \gets$ current CPU load at fog node $i$
+\State $L_{mem} \gets$ current memory load at fog node $i$
+\State $L_{bw} \gets$ current bandwidth load at fog node $i$
+\State $projected_{cpu} \gets L_{cpu} + R_{cpu} / C_{cpu}$
+\State $projected_{mem} \gets L_{mem} + R_{mem} / C_{mem}$
+\State $projected_{bw} \gets L_{bw} + R_{bw} / Claimed_{bw}$
+\State
+\State \textit{// Check feasibility}
+\State $timeToDeadline \gets \max(0, D_{sla} - t)$
+\State $hasHealthyServer \gets$ any server at $i$ is not faulted and not predicted to fail
+\State $feasible \gets hasHealthyServer$ and $projected_{cpu} \leq 1$ and $projected_{mem} \leq 1$ 
+\State \hspace{3em} and $projected_{bw} \leq 1$ and $T^{claimed}_{mig} \leq timeToDeadline$
+\State
+\State \textit{// Compute bid value}
+\State $Impact \gets \frac{R_{cpu}}{C_{cpu}} + \frac{R_{mem}}{C_{mem}} + \frac{R_{bw}}{Claimed_{bw}}$
+\State $Bid_{value} \gets T^{claimed}_{mig} + k \cdot Impact$ \Comment{$k$ is resource impact weight}
+\State
+\State \textit{// Return bid response}
+\State \textbf{return} BidResponse$(i, c.id, feasible, Bid_{value}, Claimed_{bw}, T^{claimed}_{mig})$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[t]
+\caption{Bid Evaluation and Winner Selection at Origin Fog Node}
+\label{alg:bid_selection}
+\begin{algorithmic}[1]
+\State \textbf{Input:} Container $c$, set of bid responses $Bids$, trust scores $T$, trust threshold $\theta_{trust}$
+\State \textbf{Output:} Selected winner fog node or cloud fallback
+\State
+\State $FeasibleBids \gets \emptyset$
+\For{each bid $b \in Bids$}
+    \State $bidderId \gets b.bidderId$
+    \State $t(bidderId) \gets T[bidderId]$
+    \State
+    \State \textit{// Filter by trust threshold}
+    \If{trust enabled and $t(bidderId) < \theta_{trust}$}
+        \State \textbf{continue} \Comment{Exclude low-trust nodes}
+    \EndIf
+    \State
+    \State \textit{// Verify feasibility using local knowledge}
+    \If{not $b.feasible$}
+        \State \textbf{continue}
+    \EndIf
+    \State
+    \State \textit{// Compute effective bid using trust adjustment}
+    \State $Bid^{eff}(bidderId) \gets \frac{b.bidValue}{\max(\varepsilon, t(bidderId))}$
+    \State
+    \State \textit{// Compute projected headroom for tie-breaking}
+    \State $headroom(bidderId) \gets (1 - projected_{cpu}) + (1 - projected_{mem}) + (1 - projected_{bw})$
+    \State
+    \State $FeasibleBids \gets FeasibleBids \cup \{(bidderId, Bid^{eff}, headroom, latency)\}$
+\EndFor
+\State
+\State \textit{// Select winner using lexicographic ordering}
+\If{$FeasibleBids \neq \emptyset$}
+    \State Sort $FeasibleBids$ by $(Bid^{eff}$ ascending, $headroom$ descending, $latency$ ascending$)$
+    \State $winner \gets$ first element in sorted $FeasibleBids$
+    \State \textbf{return} $winner.bidderId$
+\Else
+    \State \textbf{return} cloud fallback
+\EndIf
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Trust Scoring and Reputation Evolution}
+
+Because the proposed collaborative FT mechanism assumes that fog nodes are independently owned and may behave strategically, a robust trust scoring process is required to maintain truthful behavior across gossip exchanges and bidding interactions. Trust values \(t(i)\in [0,1]\) quantify each node’s historical reliability and are updated after every completed task using both migration-stage and execution-stage measurements. This is essential for enabling collaboration without imposing central oversight. Every fog node maintains a trust value for every other fog node in the network.
+
+The trust mechanism evaluates explicit bid honesty by comparing claimed versus actual migration performance. The actual bandwidth is reconstructed from observed transfer behavior as  
+\begin{equation}
+Actual_{bw}=\frac{S_{container}}{T_{transfer}}\times 8
+\label{eq:actual_bw}
+\end{equation}
+and the relative bandwidth honesty error is  
+\begin{equation}
+e_{bw}=\frac{|Claimed_{bw}-Actual_{bw}|}{\max(\varepsilon,Claimed_{bw})}
+\label{eq:ebw}
+\end{equation}
+Similarly, the discrepancy between claimed and actual migration times is captured through  
+\begin{equation}
+T^{actual}_{mig}=t_{pause}+T_{transfer}+t_{resume}
+\label{eq:tmig_actual}
+\end{equation}
+\begin{equation}
+e_{mig}=\frac{|T^{claimed}_{mig}-T^{actual}_{mig}|}{\max(\varepsilon,T^{claimed}_{mig})}
+\label{eq:emig}
+\end{equation}
+
+In the trust model, the parameters \(\tau_{bw}\) and \(\tau_{mig}\) define the dishonesty thresholds for bandwidth and migration time, respectively. Error values above these thresholds indicate intentional misreporting. The trust update therefore applies a multiplicative decay using  
+\begin{equation}
+t'(i)=t(i)\cdot \delta_{decay}
+\label{eq:decay_phase}
+\end{equation}
+whenever \(e_{bw}>\tau_{bw}\) or \(e_{mig}>\tau_{mig}\).
+
+To detect dishonest execution behavior such as understated CPU or memory load, the framework evaluates SLA performance using  
+\begin{equation}
+m_{sla}=\frac{D_{sla}-T_{complete}}{\max(\varepsilon,D_{sla})}
+\label{eq:msla}
+\end{equation}
+Negative margins indicate SLA violations. The additive penalty  
+\begin{equation}
+t''(i)=\max(0,t'(i)-\beta_{violation})
+\label{eq:beta_violation}
+\end{equation}
+is applied when \(m_{sla}<-\tau_{sla}\), where \(\tau_{sla}\) defines the tolerance for SLA deviation. The parameter \(\beta_{violation}\) quantifies how strongly such violations reduce trust.
+
+Conversely, the trust model rewards consistently honest fog nodes through  
+\begin{equation}
+t''(i)=\min(1,t'(i)+\beta_{success})
+\label{eq:beta_success}
+\end{equation}
+whenever all honesty conditions are satisfied. The parameter \(\beta_{success}\) governs the incremental trust gained from compliant behavior.
+
+The final trust value is  
+\begin{equation}
+t(i)=t''(i)
+\label{eq:final_trust}
+\end{equation}
+which integrates both migration-stage honesty checks and SLA-based execution verification. The parameters \(\tau_{bw}\), \(\tau_{mig}\), and \(\tau_{sla}\) therefore define the boundaries of acceptable error, while \(\beta_{violation}\) and \(\beta_{success}\) control how penalties and rewards shape long-term trust evolution. Together, these mechanisms ensure that repeated dishonesty, whether through gossip, bidding, or execution, reduces a node’s influence in future auctions, while sustained honest behavior is economically reinforced.
+
+In addition to these active updates, trust also improves passively over time so that nodes that have not recently hosted tasks can gradually regain competitiveness. The recovery magnitude is proportional to the remaining distance to perfect trust, and at periodic intervals the system applies  
+\begin{equation}
+t_{passive}(i,t)=\min\left(1,\; t(i)+r_{passive}\cdot (1-t(i))\right)
+\label{eq:passive_recovery}
+\end{equation}
+where \(r_{passive}\) is a small recovery rate applied at regular time intervals. This slow and asymptotic rise prevents long-term exclusion of inactive nodes while ensuring that previously dishonest nodes do not regain trust abruptly. The complete trust update mechanism, integrating both active evaluation and passive recovery, is formalized in Algorithm~\ref{alg:trust_update}.
+
+\begin{algorithm}[t]
+\caption{Trust Evaluation and Update with Passive Recovery}
+\label{alg:trust_update}
+\begin{algorithmic}[1]
+\State \textbf{Input:} Fog node $i$, container $c$, actual metrics $(Actual_{bw}, T^{actual}_{mig})$, 
+\State \hspace{3em} claimed metrics $(Claimed_{bw}, T^{claimed}_{mig})$, completion time $T_{complete}$
+\State \textbf{Output:} Updated trust score $t(i)$
+\State
+\State \textit{// Phase 1: Migration and bandwidth honesty evaluation}
+\State $e_{bw} \gets \frac{|Claimed_{bw} - Actual_{bw}|}{\max(\varepsilon, Claimed_{bw})}$
+\State $e_{mig} \gets \frac{|T^{claimed}_{mig} - T^{actual}_{mig}|}{\max(\varepsilon, T^{claimed}_{mig})}$
+\State
+\State $t'(i) \gets t(i)$ \Comment{Initialize with current trust}
+\If{$e_{bw} > \tau_{bw}$ or $e_{mig} > \tau_{mig}$}
+    \State $t'(i) \gets t(i) \cdot \delta_{decay}$ \Comment{Apply multiplicative decay}
+\EndIf
+\State
+\State \textit{// Phase 2: SLA-based evaluation}
+\State $m_{sla} \gets \frac{D_{sla} - T_{complete}}{\max(\varepsilon, D_{sla})}$
+\State
+\If{$m_{sla} < -\tau_{sla}$}
+    \State $t''(i) \gets \max(0, t'(i) - \beta_{violation})$ \Comment{Apply additive penalty}
+\Else
+    \If{$e_{bw} \leq \tau_{bw}$ and $e_{mig} \leq \tau_{mig}$}
+        \State $t''(i) \gets \min(1, t'(i) + \beta_{success})$ \Comment{Apply additive reward}
+    \Else
+        \State $t''(i) \gets t'(i)$ \Comment{No SLA reward if migration dishonest}
+    \EndIf
+\EndIf
+\State
+\State $t(i) \gets t''(i)$ \Comment{Store updated trust}
+\State
+\State \textit{// Passive recovery (applied periodically for all fog nodes)}
+\Procedure{PassiveRecovery}{$i, t_{current}, t_{last\_recovery}$}
+    \If{$t_{current} - t_{last\_recovery} \geq \Delta t_{recovery}$}
+        \State $increment \gets r_{passive} \cdot (1 - t(i))$
+        \State $t(i) \gets \min(1, t(i) + increment)$
+        \State Update $t_{last\_recovery}(i) \gets t_{current}$
+    \EndIf
+\EndProcedure
+\State
+\State \textbf{return} $t(i)$
+\end{algorithmic}
+\end{algorithm}
+\subsection{Migration Workflow}
+
+The migration workflow describes how the system reacts once a fault is predicted or detected and how it determines the next execution location for each affected container. Faults differ in severity, with some allowing clean checkpointing and others destroying progress, so the workflow adapts to the specific situation. It first attempts to keep the task within the same fog node, then expands the search to collaborating fog nodes, and finally relies on the cloud when no suitable collaborator is available. This process unifies feasibility checks, gossip visibility, dynamic scoring, reverse auction bidding, and trust adjustment into a single decision path. Algorithm~\ref{alg:migration_workflow} presents the complete migration decision process.
+
+When the FT predictor flags a server as approaching failure, all containers on that server are paused and checkpointed. Unexpected CPU or bandwidth degradation still permits an orderly pause, while crashes erase all progress. Once removed, each container enters the migration engine, which begins with local recovery. The local scheduler is queried for a healthy server. If one exists, the container resumes locally. If not, the workflow moves to inter-fog migration.
+
+Here, the system must compare independently operated fog nodes using the state information disseminated through gossip. Dynamic scoring interprets this information in relation to the container's needs. The resource profile is expressed through proportional contributions
+\begin{equation}
+p_{cpu}, \qquad p_{mem}, \qquad p_{bw},
+\label{eq:prop_contrib}
+\end{equation}
+which sum to one and describe whether the workload is primarily CPU, memory, or bandwidth oriented. Workload alone is insufficient, so urgency is added through the normalized slack factor
+\begin{equation}
+U_{norm} = 1 - \frac{\max(0,\,D_{sla} - T_{pred})}{D_{sla}},
+\label{eq:unorm}
+\end{equation}
+which increases as the task approaches its deadline.
+
+Using both workload and urgency, the system computes the weights \(\alpha\), \(\beta\), and \(\gamma\). Since urgent tasks are more sensitive to bandwidth, the bandwidth weight becomes
+\begin{equation}
+\gamma = p_{bw} + U_{norm}(1 - p_{bw}),
+\label{eq:gamma_weight}
+\end{equation}
+and the remainder is divided between CPU and memory:
+\begin{equation}
+\alpha = (1-\gamma)\frac{p_{cpu}}{p_{cpu}+p_{mem}}, 
+\qquad
+\beta  = (1-\gamma)\frac{p_{mem}}{p_{cpu}+p_{mem}}.
+\label{eq:alpha_beta_weights}
+\end{equation}
+These weights, which sum to one, determine how heavily each load dimension influences the dynamic score. Fog nodes with stale gossip entries are discarded, and the highest scoring nodes become candidates for the next stage.
+
+To combine these weights with the gossip-reported loads \(L^{i}_{cpu}\), \(L^{i}_{mem}\), and \(L^{i}_{bw}\) of node \(i\), the system computes the dynamic score
+\begin{equation}
+Score(i) = \alpha \left(1 - L^{i}_{cpu}\right)
+            + \beta \left(1 - L^{i}_{mem}\right)
+            + \gamma \left(1 - L^{i}_{bw}\right),
+\label{eq:score}
+\end{equation}
+which reflects how well node \(i\) aligns with the container's CPU, memory, and bandwidth demands under its current urgency. Higher scores indicate more suitable collaborators for migration. The complete scoring procedure is formalized in Algorithm~\ref{alg:scoring}.
+
+\begin{algorithm}[t]
+\caption{Dynamic Scoring of Fog Nodes for Container Migration}
+\label{alg:scoring}
+\begin{algorithmic}[1]
+\State \textbf{Input:} Container $c$, state table $StateTable$, staleness threshold $\theta_{stale}$, current time $t$
+\State \textbf{Output:} Ranked list of candidate fog nodes
+\State
+\State \textit{// Compute workload proportions}
+\State $total \gets R_{cpu} + R_{mem} + R_{bw}$
+\State $p_{cpu} \gets R_{cpu} / total$
+\State $p_{mem} \gets R_{mem} / total$
+\State $p_{bw} \gets R_{bw} / total$
+\State
+\State \textit{// Compute normalized urgency}
+\State $slack \gets \max(\varepsilon, D_{sla} - t)$
+\State $U \gets 1 / slack$
+\State $U_{norm} \gets \min(1.0, U \cdot k)$ \Comment{$k = 0.1$ is urgency scaling factor}
+\State
+\State \textit{// Compute dynamic weights}
+\State $\gamma \gets p_{bw} + U_{norm}(1 - p_{bw})$
+\State $W_{remaining} \gets 1 - \gamma$
+\State $\alpha \gets W_{remaining} \cdot \frac{p_{cpu}}{p_{cpu} + p_{mem}}$
+\State $\beta \gets W_{remaining} \cdot \frac{p_{mem}}{p_{cpu} + p_{mem}}$
+\State
+\State \textit{// Score all non-stale fog nodes}
+\State $Candidates \gets \emptyset$
+\For{each fog node $i$ in $StateTable$}
+    \If{$i$ is local node}
+        \State \textbf{continue}
+    \EndIf
+    \State $entry \gets StateTable[i]$
+    \If{$t - entry.timestamp > \theta_{stale}$}
+        \State \textbf{continue} \Comment{Discard stale entries}
+    \EndIf
+    \State $Score(i) \gets \alpha(1 - L^{i}_{cpu}) + \beta(1 - L^{i}_{mem}) + \gamma(1 - L^{i}_{bw})$
+    \State $Candidates \gets Candidates \cup \{(i, Score(i))\}$
+\EndFor
+\State
+\State \textit{// Sort by score descending}
+\State Sort $Candidates$ by score in descending order
+\State \textbf{return} $Candidates$
+\end{algorithmic}
+\end{algorithm}
+
+The reverse auction is then initiated. Each candidate constructs a bid using the previously defined equations for claimed migration time and resource impact. The origin node adjusts these bids using the trust based effective bid formula, ensuring that unreliable nodes naturally appear less attractive. The winning fog node is selected using the established lexicographic rule. Migration proceeds to that node and the system records the observed transfer duration as \(T_{\text{transfer}}\). The receiving node’s scheduler handles final server-level placement.
+
+If no fog node is capable of hosting the container, the system escalates to the cloud, which does not participate in bidding. The transfer is completed, \(T_{\text{transfer}}\) is recorded, and the task resumes or restarts depending on whether checkpointing was possible.
+
+Overall, the workflow creates a structured and flexible response to failures. It prioritizes local recovery, leverages distributed scoring and auction-based cooperation when needed, and uses the cloud only as a final fallback. This layered approach maintains task continuity across both predicted and unexpected fault scenarios, even in environments where fog nodes might misreport their state or behave strategically.
+
+\begin{algorithm}[t]
+\caption{Collaborative Migration Workflow at Fog Node $i$}
+\label{alg:migration_workflow}
+\begin{algorithmic}[1]
+\State \textbf{Input:} Container $c$, fault event $f$, servers $S_i$, state table $StateTable_i$
+\State \textbf{Output:} Container migrated to new location
+\State
+\State \textit{// Handle fault and checkpoint if possible}
+\State $sourceServer \gets$ server hosting container $c$
+\If{$f.type = $ SERVER\_CRASH}
+    \State Remove $c$ from $sourceServer$ without checkpointing
+    \State $c.resetProgress()$ \Comment{Work progress lost}
+\Else \Comment{CPU or bandwidth degradation}
+    \State Pause container $c$
+    \State Checkpoint $c$ with current progress at time $t$
+    \State Remove $c$ from $sourceServer$
+\EndIf
+\State
+\State \textit{// Phase 1: Attempt intra-fog migration}
+\State $localTarget \gets \text{SelectLocalServer}(c, S_i)$ \Comment{Best healthy server}
+\If{$localTarget \neq \text{null}$}
+    \State Place $c$ on $localTarget$
+    \State Resume execution of $c$
+    \State Record intra-fog migration
+    \State \textbf{return}
+\EndIf
+\State
+\State \textit{// Phase 2: Inter-fog migration via reverse auction}
+\State $Candidates \gets$ Score all fog nodes using Algorithm~\ref{alg:scoring}
+\State Limit $Candidates$ to top $N_{max}$ nodes
+\State
+\State \textit{// Request bids from candidates}
+\State $Bids \gets \emptyset$
+\For{each fog node $j \in Candidates$}
+    \State Send migration request to $j$
+    \State Await bid response from $j$ (computed via Algorithm~\ref{alg:bid_calculation})
+    \State $Bids \gets Bids \cup \{$ received bid$\}$
+\EndFor
+\State
+\State \textit{// Select winner using trust-adjusted bidding}
+\State $winner \gets$ SelectWinner$(c, Bids)$ using Algorithm~\ref{alg:bid_selection}
+\If{$winner \neq \text{null}$ and $winner \neq $ cloud}
+    \State Initiate transfer of $c$ to fog node $winner$
+    \State Measure actual bandwidth $Actual_{bw}$ and migration time $T^{actual}_{mig}$
+    \State Record inter-fog migration
+    \State \textbf{return}
+\EndIf
+\State
+\State \textit{// Phase 3: Cloud fallback}
+\If{cloud is available}
+    \State Initiate transfer of $c$ to cloud
+    \State Resume or restart $c$ on cloud resources
+    \State Record cloud migration
+\Else
+    \State Enqueue $c$ for retry when resources become available
+\EndIf
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Payment Settlement}
+
+After a migrated task completes, the originating fog node settles the payment using the final payment rule. The payment is reduced when the hosting fog node is found to have misreported bandwidth or migration time, and it is also reduced when the task violates its SLA. The updated settlement is governed by
+\begin{equation}
+\text{Payment} = \max\left(0,\ Bid_{Value} - P_{\text{lie}} - P_{\text{sla}}\right),
+\label{eq:payment}
+\end{equation}
+where dishonesty penalties are computed as
+\begin{equation}
+P_{\text{lie}} = \lambda \left(e_{bw} + e_{mig}\right),
+\label{eq:plie}
+\end{equation}
+and SLA penalties derive from the SLA margin defined earlier,
+\begin{equation}
+P_{\text{sla}} = \mu \cdot \max\left(0,\ -m_{sla}\right).
+\label{eq:psla}
+\end{equation}
+Here, \(\lambda\) controls the strength of dishonesty penalties and \(\mu\) controls the magnitude of SLA penalties. Intra-fog placements yield zero payment, and cloud placements follow the same rule while not contributing to trust adjustments. This settlement step ensures that economic rewards reflect honest reporting and timely execution, while also attaching a financial consequence to misleading bids and missed SLAs. The complete settlement process is detailed in Algorithm~\ref{alg:payment_settlement}.
+
+\begin{algorithm}[t]
+\caption{Payment Settlement and Combined Trust Update}
+\label{alg:payment_settlement}
+\begin{algorithmic}[1]
+\State \textbf{Input:} Container $c$, winning fog node $i$, completion time $T_{complete}$, bid context
+\State \textbf{Output:} Payment transfer and updated trust score
+\State
+\State \textit{// Apply passive trust recovery for all fog nodes}
+\State PassiveRecovery for all fog nodes at current time
+\State
+\State \textit{// Retrieve bid and actual metrics}
+\State $Bid_{value} \gets$ original bid value from fog node $i$
+\State $Claimed_{bw} \gets$ bandwidth claimed in bid
+\State $T^{claimed}_{mig} \gets$ migration time claimed in bid
+\State $Actual_{bw} \gets$ measured actual bandwidth during transfer
+\State $T^{actual}_{mig} \gets$ measured actual migration time
+\State
+\State \textit{// Compute error metrics}
+\State $e_{bw} \gets \frac{|Claimed_{bw} - Actual_{bw}|}{\max(\varepsilon, Claimed_{bw})}$
+\State $e_{mig} \gets \frac{|T^{claimed}_{mig} - T^{actual}_{mig}|}{\max(\varepsilon, T^{claimed}_{mig})}$
+\State
+\State \textit{// Compute SLA margin}
+\State $m_{sla} \gets \frac{D_{sla} - T_{complete}}{\max(\varepsilon, D_{sla})}$
+\State
+\State \textit{// Update trust using combined evaluation (Algorithm~\ref{alg:trust_update})}
+\State $t_{updated}(i) \gets$ TrustUpdate$(i, c, Actual_{bw}, T^{actual}_{mig}, Claimed_{bw}, T^{claimed}_{mig}, T_{complete})$
+\State
+\State \textit{// Calculate payment with penalties}
+\State $P_{lie} \gets \lambda (e_{bw} + e_{mig})$
+\State $P_{sla} \gets \mu \cdot \max(0, -m_{sla})$
+\State $Payment \gets \max(0, Bid_{value} - P_{lie} - P_{sla})$
+\State
+\State \textit{// Execute payment transfer}
+\If{fog node $i \neq$ owner of $c$ and $i \neq$ cloud}
+    \State Debit $Payment$ from owner's account
+    \State Credit $Payment$ to fog node $i$'s account
+\EndIf
+\State
+\State Record settlement metrics: $(c.id, i, Bid_{value}, Payment, t_{updated}(i), m_{sla})$
+\end{algorithmic}
+\end{algorithm}
+
+
+\subsection{Effectiveness of Solution}
+This section explains how the proposed system behaves when fog nodes try to behave strategically or dishonestly. The explanations are written as different scenarios that walk through what happens in each case. The reasoning still comes from the mechanisms already described earlier, such as the bidding formulation, the gossip scoring, the trust update equations with the two-phase adjustments, and the SLA-based evaluation that happens naturally after execution. The goal here is not to introduce anything new, but just to show how the pieces already introduced end up supporting the system even when nodes do not behave nicely.
+
+\begin{description}
+
+\item[Scenario 1: A fog node understates its bid.]
+If a fog node tries to understate its bid by claiming a smaller migration time or a lower resource impact than what it actually has, then it might look attractive at first. It may even win a bid occasionally because the origin node simply sees a lower cost. But as soon as the container finishes migration, the actual bandwidth and the actual migration duration are measured using the equations already given for \(B_{actual}\) and the real \(T_{\text{mig,actual}}\). When the claimed numbers and the actual numbers do not match, the relative errors appear, and these errors immediately activate the multiplicative trust decay in Phase 1 of the trust update. And once that happens, the trust value decreases and the node’s future effective bids become much higher because effective bids divide by trust. So the node that understates its bid ends up becoming less competitive later. This means the short-term gain is lost quickly, and in many cases it becomes much worse off. So understating a bid does not really help the node, and the system naturally pushes it out.
+
+\item[Scenario 2: A fog node overstates its bid.]
+If a fog node overstates its bid and reports a much higher cost than necessary, the system does not punish it with trust decay because the actual measurements still match what was claimed. But this behavior still does not work out well for the node. The inflated bid simply places it at the bottom of the winner selection, and because winner selection always tries to reduce the effective bid, such a node almost never gets chosen. In some sense, the node excludes itself by being too expensive. This means overstating does not give any advantage, and it slowly pushes the node away from being part of the collaboration. The system does not need to punish it, because the bidding logic already does that indirectly.
+
+\item[Scenario 3: A fog node lies about bandwidth or migration time.]
+A fog node may try to lie by putting nicer claimed bandwidth or shorter claimed migration times into its bid. But once the migration actually takes place, the real transfer bandwidth and the real migration duration can be computed directly from the observed transfer using the earlier equations. These measured values go into the relative error formulas, and when the discrepancy becomes noticeable, the thresholds for dishonesty are crossed. As soon as that happens the trust update does the multiplicative penalty, and sometimes the additive one too if the SLA is also harmed. And because trust affects the effective bid so strongly, even a few dishonest bids make the node almost impossible to select in future migrations. So lying about bandwidth or migration time is always detected eventually because we do not rely on the claimed values, we rely on what actually happened.
+
+\item[Scenario 4: A fog node lies about CPU or RAM load.]
+CPU and memory dishonesty is a bit harder because these values cannot be checked directly during the bidding process. But they show up later through the SLA margin. If a fog node lies and says it has plenty of available CPU or RAM and then tries to run the container with less than promised, the execution slows down. The actual completion time becomes larger, and the SLA margin becomes negative, and this automatically triggers the additive trust penalty in Phase 2. If this continues to happen multiple times, the trust value keeps dropping. Once trust goes below the threshold, the node stops being considered at all. So even though the system does not directly check CPU or RAM claims, it relies on the SLA margin to expose dishonesty. And since SLA violations are observed facts, a fog node cannot hide the results of its lies.
+
+\item[Scenario 5: A fog node lies in the gossip state.]
+A fog node may try to cheat by reporting a lighter load in the gossip state, hoping to look more attractive when scores are calculated. But gossip load values come from actual server measurements, so this type of lying is already constrained. And even if the node could somehow lower its reported load, it still has to execute the containers that it attracts. If it is actually overloaded, execution slows down and that leads to SLA violations. And these SLA violations directly activate the additive penalty in the trust update. So even if gossip lying helped in the short term, the resulting poor performance would appear very quickly, and trust would decrease. And since lower trust makes bidding worse, the node eventually stops being selected anyway. So lying in gossip does not really help, and eventually it becomes counterproductive.
+
+\item[Scenario 6: A fog node uses multiple dishonest strategies together.]
+A fog node may think that if it mixes different types of lies, like fake gossip values, wrong CPU load reports, underestimated migration times, or overstated bandwidth, then maybe the system cannot catch all of it. But because the trust update works in two separate phases, and because SLA outcomes are always observable, the penalties accumulate. Migration dishonesty activates the multiplicative decay in Phase 1. SLA dishonesty activates the additive penalty in Phase 2. When both happen together, the trust falls even faster. Once trust becomes small, the effective bid becomes extremely large, and the node almost never gets selected. So combining dishonest behaviors does not hide anything; instead it accelerates exclusion from the collaboration.
+
+\end{description}
+
+These scenarios show, in a practical and scenario-driven way, that the mechanisms introduced earlier work together so that lying or misreporting is not a sustainable strategy. The system keeps moving toward nodes that behave honestly, because honest nodes naturally get better trust, better effective bids, and fewer penalties. The result is that the proposed FT system remains stable and cooperative even when nodes try to game the process.
+
+\subsection{Experimental Setup}
+
+The evaluation of the proposed collaborative FT approach was conducted using a customized version of iFogSim2\footnote{https://github.com/Cloudslab/iFogSim} that we modified to support all components of our design, including container-level execution, checkpointing, migration, gossip-driven state dissemination, urgency-aware scoring, reverse-auction bidding, and trust-based negotiation. These extensions allowed the simulator to faithfully reproduce the behavior of the proposed mechanisms rather than relying on the default iFogSim model. All workloads, failures, and communication events were generated synthetically within the modified simulator, enabling controlled experiments and full reproducibility without reliance on external datasets.
+
+Table~\ref{tab:system_config} summarizes the system-level configuration used in all experiments. The simulated environment consists of ten fog nodes arranged in a logical ring for gossip communication. Each fog node hosts three to four heterogeneous servers with capacities in the range of \(C^{s}_{cpu} \in [2000, 2200]\) MIPS, \(C^{s}_{mem} = 4096\) MB, and \(C^{s}_{bw} \in [3500, 4500]\) Mbps. Each fog node is connected to six stationary edge devices that continuously generate tasks. Cloud resources were provisioned with significantly higher capacity to serve as a reliable fallback destination. Network delays follow the fog-computing hierarchy, where edge--fog links are fastest, inter-fog communication is moderately fast, and fog--cloud links are slower and more bandwidth-constrained.
+
+Faults, workload parameters, bidding configuration, trust parameters, and SLA specification are summarized in Table~\ref{tab:workload_fault_config}. Faults are injected according to a Poisson arrival process with a mean inter-failure time of 60 seconds, and each fault includes a prediction window of 300 seconds and a recovery time of 240 seconds. The three supported fault types---CPU degradation, bandwidth degradation, and server crash---follow the probabilities listed in the table. CPU and bandwidth degradations allow the system to checkpoint containers before migrating them, while crashes cause complete loss of progress. During inter-fog migration, fog nodes respond with bids computed using the claimed migration time and resource impact formulations defined earlier, parameterized by the constants \(k\), \(t_{pause}\), and \(t_{resume}\). Trust scores evolve according to measured discrepancies in bandwidth and migration honesty, SLA behavior, and passive recovery, governed by the thresholds \(\tau_{bw}\), \(\tau_{mig}\), and \(\tau_{sla}\).
+
+Task workloads were selected to produce realistic load conditions across the fog layer. Each edge device generates twenty tasks with exponential inter-arrival times, using configurable jitter. Resource requirements for tasks---including CPU, memory, bandwidth, runtime, and container size---are sampled from the value ranges shown in Table~\ref{tab:workload_fault_config}. SLA deadlines scale with task runtime according to the multiplier provided in the configuration.
+
+A baseline system was implemented for comparison, identical to the proposed mode except that gossip dissemination, trust scoring, and auction-based collaboration were disabled. Instead, all migration decisions were handled by a centralized scheduler. This allowed direct comparison between our decentralized collaborative FT approach and a simplified centralized system under identical workload and fault conditions.
+
+\begin{table}[h!]
+\centering
+\caption{System and Network Configuration}
+\label{tab:system_config}
+\begin{tabular}{ll}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+% Simulation Mode & 1 (Proposed Approach) \\
+% Simulation Seed & 42 \\
+% Simulation Duration & 3600 s \\
+% \midrule
+Number of Fog Nodes & 10 \\
+Servers per Fog Node & 3--4 \\
+CPU Capacity per Server ($C^{s}_{cpu}$) & 2000--2200 MIPS \\
+Memory per Server ($C^{s}_{mem}$) & 4096 MB \\
+Bandwidth per Server ($C^{s}_{bw}$) & 3500--4500 Mbps \\
+Storage per Server & 100000 MB \\
+Uplink/Downlink Bandwidth & 6000--9000 Mbps \\
+\midrule
+Cloud CPU Capacity & 9000 MIPS \\
+Cloud Memory & 45000 MB \\
+Cloud Bandwidth & 40000 Mbps \\
+Cloud Storage & 200000 MB \\
+Cloud Uplink/Downlink & 40000 Mbps \\
+\midrule
+Edge Devices per Fog Node & 6 \\
+Edge Latency & 3 ms \\
+Edge Bandwidth & 1500 Mbps \\
+Edge Heterogeneity Jitter & 10\% \\
+\midrule
+Inter-Fog Latency & 8 ms \\
+Inter-Fog Bandwidth & 1500 Mbps \\
+Fog-Cloud Latency & 70 ms \\
+Fog-Cloud Bandwidth & 150 Mbps \\
+\midrule
+Gossip Enabled & True \\
+Gossip Interval & 7 s \\
+Gossip Staleness Threshold & 3 intervals \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h!]
+\centering
+\caption{Fault, Bidding, Trust, and Task Configuration}
+\label{tab:workload_fault_config}
+\begin{tabular}{ll}
+\toprule
+\textbf{Category} & \textbf{Parameter and Value} \\
+\midrule
+\textbf{Fault Model} &  \\
+Prediction Lead Time & 300 s \\
+Mean Time Between Failures & 60 s \\
+Fault Start Delay & 30 s \\
+Recovery Time & 240 s \\
+CPU Failure Probability & 0.33 \\
+Bandwidth Degradation Probability & 0.34 \\
+Server Crash Probability & 0.33 \\
+\midrule
+\textbf{Bidding Model} &  \\
+Max Fog Bidders & 4 \\
+Pause Time ($t_{pause}$) & 1.5 s \\
+Resume Time ($t_{resume}$) & 1.5 s \\
+Resource Impact Weight ($k$) & 0.6 \\
+\midrule
+\textbf{Trust Model} &  \\
+Trust Enabled & True \\
+Decay Factor ($\delta_{decay}$) & 0.5 \\
+Trust Recovery Factor & 0.05 \\
+Trust Threshold & 0.5 \\
+Bandwidth Dishonesty Threshold ($\tau_{bw}$) & 0.3 \\
+Migration Dishonesty Threshold ($\tau_{mig}$) & 0.5 \\
+SLA Violation Threshold ($\tau_{sla}$) & 0.3 \\
+SLA Success Bonus ($\beta_{success}$) & 0.02 \\
+SLA Violation Penalty ($\beta_{violation}$) & 0.10 \\
+Payment Dishonesty Penalty ($\lambda$) & 0.25 \\
+Payment SLA Penalty ($\mu$) & 0.10 \\
+Passive Recovery Rate ($r_{passive}$) & 0.01 \\
+Passive Recovery Interval & 21 s \\
+\midrule
+% \textbf{SLA Model} &  \\
+% Slack Ratio & 0.06 \\
+% Network Overhead Ratio & 0.04 \\
+% \midrule
+\textbf{Task Model} &  \\
+Tasks per Edge Device & 20 \\
+Mean Inter-Arrival Time & 160 s \\
+% Arrival Jitter & 20\% \\
+% Default Runtime & 260 s \\
+% Default Demand (MIPS) & 700 MIPS \\
+% Default RAM & 256 MB \\
+% Default Bandwidth Demand & 300 Mbps \\
+% Default Container Size & 240 MB \\
+Runtime Range & 240--400 s \\
+Demand MIPS Range & 200--600 MIPS \\
+RAM Range & 128--512 MB \\
+Bandwidth Range & 150--550 Mbps \\
+Container Size Range & 200--420 MB \\
+% SLA Runtime Multiplier & 1.2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Metrics for Comparison}
+
+To understand how the proposed collaborative FT approach behaves compared to the baseline configuration, we rely on a set of metrics that capture how well the system maintains timeliness, how smoothly it handles migrations, and how stable it remains when faults occur. These metrics highlight the practical influence of gossip visibility, trust-aware bidding, and prediction-driven migration, and they help show how these components shape the flow of tasks through the fog layer.
+
+\begin{description}
+
+\item[SLA violation rate.]  
+Each task in the system is associated with a completion deadline, and a violation is recorded whenever the task finishes after this deadline. Since both predicted faults and unexpected degradations can delay execution or increase migration overhead, the SLA violation rate provides a direct indication of whether the proposed FT framework improves reliability under fault conditions. A lower violation rate typically reflects more stable execution.
+
+\item[Average migration time.]  
+This measures how long a container remains in the migration process, beginning at the pause event and ending when execution resumes at the destination. A container may experience several migrations during its lifetime, especially in environments with repeated or overlapping faults, and for this reason average migration time becomes an important metric to observe. It shows whether the FT mechanisms keep recovery overhead manageable or whether repeated migrations accumulate into noticeable performance penalties. Lower values usually indicate smoother and more predictable recovery.
+
+\item[Average makespan time.]  
+Makespan represents the total duration a task spends in the system, including execution time, any delays caused by predicted or reactive faults, and all migration-related overhead. We compute this value for each task and then average across the workload. Makespan offers a broad view of end-to-end performance and helps reveal whether tasks are progressing efficiently despite migrations and disruptions.
+
+\item[Total number of migrations.]  
+To better understand how the system responds to faults, we track the total number of migrations and classify them into intra-fog, inter-fog, and cloud migrations. Intra-fog migrations reflect the system’s ability to recover locally. Inter-fog migrations show how often cooperation among fog nodes is required. Cloud migrations indicate situations where neither local recovery nor inter-fog support is feasible. Observing the distribution of these migration types helps compare the behavior of the proposed FT approach with the baseline configuration, particularly in terms of how often unnecessary or avoidable migrations occur.
+
+\end{description}
+
+Together, these metrics provide a comprehensive view of responsiveness, efficiency, and stability, allowing us to compare the proposed FT approach with the baseline configuration in a controlled and meaningful way.
+
+
+
+
+\bibliographystyle{myIEEEtran}
+\bibliography{references}  %%% Remove comment to use the external .bib file (using bibtex).
+%%% and comment out the ``thebibliography'' section.
+
+
+%%% Comment out this section when you \bibliography{references} is enabled.
+% \begin{thebibliography}{1}
+
+% \bibitem{kour2014real}
+% George Kour and Raid Saabne.
+% \newblock Real-time segmentation of on-line handwritten arabic script.
+% \newblock In {\em Frontiers in Handwriting Recognition (ICFHR), 2014 14th
+%   International Conference on}, pages 417--422. IEEE, 2014.
+
+% \bibitem{kour2014fast}
+% George Kour and Raid Saabne.
+% \newblock Fast classification of handwritten on-line arabic characters.
+% \newblock In {\em Soft Computing and Pattern Recognition (SoCPaR), 2014 6th
+%   International Conference of}, pages 312--318. IEEE, 2014.
+
+% \bibitem{hadash2018estimate}
+% Guy Hadash, Einat Kermany, Boaz Carmeli, Ofer Lavi, George Kour, and Alon
+%   Jacovi.
+% \newblock Estimate and replace: A novel approach to integrating deep neural
+%   networks with existing applications.
+% \newblock {\em arXiv preprint arXiv:1804.09028}, 2018.
+
+% \end{thebibliography}
+
+
+\end{document}
