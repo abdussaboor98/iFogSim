@@ -13,7 +13,7 @@ gossip:
 
 fault:
   predictionLeadSeconds: 120          # Enough time to allow some local recovery, but not trivial
-  meanTimeBetweenFailureSeconds: 200  # Fewer overlapping faults → reduces excessive local_infeasible
+  meanTimeBetweenFailureSeconds: 180  # Fewer overlapping faults → reduces excessive local_infeasible
   startDelaySeconds: 90
   recoverySeconds: 210               # Recovery still meaningful under load
   cpuFailureProb: 0.33
@@ -49,7 +49,7 @@ sla:
   netOverheadRatio: 0.04
 
 task:
-  tasksPerEdge: 28               # Enough load but not extreme
+  tasksPerEdge: 30               # Enough load but not extreme
   meanInterArrivalSeconds: 160    # Balanced inflow; avoids 541 local-infeasible
   jitterPercent: 20
   taskGenerationCutoffBufferRatio: 1.5  # Stop generating tasks when remaining time < 1.5x required execution time
@@ -80,7 +80,7 @@ topology:
   fogNodes:
     - name: fog-1
       servers: 4
-      edgeDevices: 4
+      edgeDevices: 5
       capacityMultiplier: 1
       serverCapacity:
         cpuMips: 2000
@@ -93,7 +93,7 @@ topology:
     - name: fog-2
       servers: 4
       edgeDevices: 8
-      capacityMultiplier: 1
+      capacityMultiplier: 1.2
       serverCapacity:
         cpuMips: 2000
         ramMb: 4096
@@ -116,7 +116,7 @@ topology:
         ratePerMips: 0.0
     - name: fog-4
       servers: 4
-      edgeDevices: 8
+      edgeDevices: 7
       capacityMultiplier: 1
       serverCapacity:
         cpuMips: 2000
@@ -128,7 +128,7 @@ topology:
         ratePerMips: 0.0
     - name: fog-5
       servers: 4
-      edgeDevices: 6
+      edgeDevices: 8
       capacityMultiplier: 1
       serverCapacity:
         cpuMips: 2000
@@ -140,8 +140,8 @@ topology:
         ratePerMips: 0.0
     - name: fog-6
       servers: 5
-      edgeDevices: 9
-      capacityMultiplier: 1.1
+      edgeDevices: 10
+      capacityMultiplier: 1
       serverCapacity:
         cpuMips: 2000
         ramMb: 4096
