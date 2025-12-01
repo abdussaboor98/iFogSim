@@ -262,6 +262,11 @@ public class MetricsCollector {
         info.slaSuccess = slaSuccess;
     }
 
+    public int getMigrationAttempts(String containerId) {
+        TaskInfo info = tasks.get(containerId);
+        return info != null ? info.migrationAttempts : 0;
+    }
+
     public void markTaskDropped(ContainerModule container, String reason, double dropTime) {
         markTaskDropped(container.getContainerId(), reason, dropTime);
     }

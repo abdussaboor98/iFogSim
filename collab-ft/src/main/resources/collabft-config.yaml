@@ -25,8 +25,9 @@ bidding:
   pauseSeconds: 1.5
   resumeSeconds: 1.5
   resourceImpactK: 0.6
-  bidTimeoutSeconds: 30
+  bidTimeoutSeconds: 5.0
   retryMigrationSeconds: 1.0
+  maxMigrationRetries: 10
 
 trust:
   enableTrust: true
@@ -48,9 +49,10 @@ sla:
   netOverheadRatio: 0.04
 
 task:
-  tasksPerEdge: 25               # Enough load but not extreme
+  tasksPerEdge: 28               # Enough load but not extreme
   meanInterArrivalSeconds: 160    # Balanced inflow; avoids 541 local-infeasible
   jitterPercent: 20
+  taskGenerationCutoffBufferRatio: 1.5  # Stop generating tasks when remaining time < 1.5x required execution time
   defaultProfile:
     runtimeSeconds: 260
     demandMips: 700
@@ -101,20 +103,20 @@ topology:
         downlinkBandwidth: 6000
         ratePerMips: 0.0
     - name: fog-3
-      servers: 3
+      servers: 4
       edgeDevices: 6
       capacityMultiplier: 1
       serverCapacity:
-        cpuMips: 2000
-        ramMb: 4096
-        bandwidth: 4500
-        storageMb: 100000
+        cpuMips: 4000
+        ramMb: 8192
+        bandwidth: 9000
+        storageMb: 200000
         uplinkBandwidth: 9000
         downlinkBandwidth: 9000
         ratePerMips: 0.0
     - name: fog-4
       servers: 4
-      edgeDevices: 9
+      edgeDevices: 8
       capacityMultiplier: 1
       serverCapacity:
         cpuMips: 2000

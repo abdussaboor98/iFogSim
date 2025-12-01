@@ -98,6 +98,8 @@ public class EdgeDevice extends FogDevice {
         double latencySeconds = edgeConfig.getLatencyMs() / 1000.0;
         double totalDelay = delay + transmissionSeconds + latencySeconds;
         double arrivalTime = CloudSim.clock() + totalDelay;
+        
+        // Calculate time components for SLA
         double tExec = sampled.getRuntimeSeconds();
         double tNet = slaConfig.getNetOverheadRatio() * tExec;
         double tSlack = slaConfig.getSlackRatio() * tExec;
@@ -105,6 +107,15 @@ public class EdgeDevice extends FogDevice {
         double tMig = biddingConfig.getPauseSeconds()
                 + sampled.getContainerSizeMb() / Math.max(1e-6, interFogBwMBps)
                 + biddingConfig.getResumeSeconds();
+        
+        // Check if there's enough time for task to complete before simulation ends
+        double minRequiredTime = (tExec + tNet + tSlack + tMig) * taskConfig.getTaskGenerationCutoffBufferRatio();
+        double remainingTime = simulationDuration - arrivalTime;
+        
+        // Stop generating tasks if not enough time remaining
+        if (remainingTime < minRequiredTime) {
+            return;
+        }
         double deadline = arrivalTime + tExec + tNet + tSlack + tMig;
         sampled.setDeadlineSeconds(deadline);
         send(getParentId(), totalDelay, CollabSimTags.TASK_ARRIVAL_EVENT,

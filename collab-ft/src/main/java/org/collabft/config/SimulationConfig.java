@@ -234,6 +234,7 @@ public class SimulationConfig {
         private int maxFogBidders = 3;
         private double bidTimeoutSeconds = 30.0;
         private double retryMigrationSeconds = 1.0;
+        private int maxMigrationRetries = 10;
 
         public double getPauseSeconds() {
             return pauseSeconds;
@@ -288,6 +289,14 @@ public class SimulationConfig {
 
         public void setRetryMigrationSeconds(double retryMigrationSeconds) {
             this.retryMigrationSeconds = retryMigrationSeconds;
+        }
+
+        public int getMaxMigrationRetries() {
+            return maxMigrationRetries;
+        }
+
+        public void setMaxMigrationRetries(int maxMigrationRetries) {
+            this.maxMigrationRetries = maxMigrationRetries;
         }
     }
 
@@ -433,16 +442,17 @@ public class SimulationConfig {
     }
 
     public static class TaskConfig {
-        private int tasksPerEdge = 5;
-        private double meanInterArrivalSeconds = 120;
-        private double jitterPercent = 0;
+        private int tasksPerEdge = 20;
+        private double meanInterArrivalSeconds = 180;
+        private double jitterPercent = 20;
         private ContainerProfile defaultProfile = new ContainerProfile();
-        private Range demandMipsRange = new Range();
         private Range runtimeRange = new Range();
+        private Range demandMipsRange = new Range();
         private Range ramRange = new Range();
         private Range bandwidthRange = new Range();
         private Range containerSizeRange = new Range();
-        private double slaRuntimeMultiplier = 1.2;
+        private double slaRuntimeMultiplier = 0.2;
+        private double taskGenerationCutoffBufferRatio = 1.5;
 
         public int getTasksPerEdge() {
             return tasksPerEdge;
@@ -522,6 +532,14 @@ public class SimulationConfig {
 
         public void setContainerSizeRange(Range containerSizeRange) {
             this.containerSizeRange = containerSizeRange;
+        }
+
+        public double getTaskGenerationCutoffBufferRatio() {
+            return taskGenerationCutoffBufferRatio;
+        }
+
+        public void setTaskGenerationCutoffBufferRatio(double taskGenerationCutoffBufferRatio) {
+            this.taskGenerationCutoffBufferRatio = taskGenerationCutoffBufferRatio;
         }
 
     }

@@ -266,9 +266,11 @@ public class FogNodeController extends FogDevice {
                 MetricsRegistry.collector().markBidWinner(containerId, cloudId);
                 activeTransfers++;
             } else {
+                MetricsRegistry.collector().markTaskPending(container, "bid_failed_no_cloud", false, CloudSim.clock());
                 enqueuePending(container);
             }
         } else {
+            MetricsRegistry.collector().markTaskPending(container, "bid_failed_retry", false, CloudSim.clock());
             enqueuePending(container);
         }
         bidManager.clear(containerId);
@@ -834,9 +836,18 @@ public class FogNodeController extends FogDevice {
             return;
         }
         int attempts = pendingMigrations.size();
+        int maxRetries = config.getBidding().getMaxMigrationRetries();
         for (int i = 0; i < attempts; i++) {
             ContainerModule container = pendingMigrations.poll();
             if (container != null) {
+                // Check if container has exceeded max retry attempts
+                int migrationAttempts = MetricsRegistry.collector().getMigrationAttempts(container.getContainerId());
+                if (maxRetries > 0 && migrationAttempts >= maxRetries) {
+                    // Drop the task - too many retries
+                    String reason = container.getMigrationTrigger().isEmpty() ? "max_retries_exceeded" : container.getMigrationTrigger() + "_max_retries";
+                    MetricsRegistry.collector().markTaskDropped(container, reason, CloudSim.clock());
+                    continue;
+                }
                 MetricsRegistry.collector().markTaskPending(container, "retry", false, CloudSim.clock());
                 migrateContainer(container, container.getMigrationTrigger().isEmpty() ? "queued_retry" : container.getMigrationTrigger());
             }
