@@ -93,6 +93,14 @@ public class FogNodeController extends FogDevice {
             case BID_TIMEOUT -> handleBidTimeout(ev);
             case MIGRATION_START -> handleMigrationStart(ev);
             case MIGRATION_FINISH -> handleMigrationFinish(ev);
+            case INITIAL_PLACEMENT_RETRY -> {
+                retryInitialPlacements();
+                // if still items in queue, schedule another retry
+                double retrySec = config.getTopology().getEdge().getRetryInitialPlacementSeconds();
+                if (!initialPlacementQueue.isEmpty() && retrySec > 0) {
+                    send(getId(), retrySec, org.collabft.events.CollabSimTags.INITIAL_PLACEMENT_RETRY, null);
+                }
+            }
             case GOSSIP_EVENT -> handleGossip(ev);
             case TASK_COMPLETE -> handleTaskComplete(ev);
             default -> {
@@ -837,6 +845,11 @@ public class FogNodeController extends FogDevice {
         queuedInitialContainers.add(container.getContainerId());
         container.setPaused(true);
         MetricsRegistry.collector().markTaskPending(container, reason, true, CloudSim.clock());
+        // schedule periodic retry for initial placements
+        double retrySec = config.getTopology().getEdge().getRetryInitialPlacementSeconds();
+        if (retrySec > 0) {
+            send(getId(), retrySec, org.collabft.events.CollabSimTags.INITIAL_PLACEMENT_RETRY, null);
+        }
     }
 
     private void retryInitialPlacements() {

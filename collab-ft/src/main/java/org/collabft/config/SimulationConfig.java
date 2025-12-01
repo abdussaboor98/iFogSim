@@ -609,6 +609,7 @@ public class SimulationConfig {
 
     public static class EdgeConfig {
         private int devicesPerFog = 5;
+        private double retryInitialPlacementSeconds = 1.0;
         private double latencyMs = 0;
         private double bandwidthMbps = 1000;
         private double heterogeneityJitter = 0;
@@ -639,6 +640,14 @@ public class SimulationConfig {
 
         public double getHeterogeneityJitter() {
             return heterogeneityJitter;
+        }
+
+        public double getRetryInitialPlacementSeconds() {
+            return retryInitialPlacementSeconds;
+        }
+
+        public void setRetryInitialPlacementSeconds(double retryInitialPlacementSeconds) {
+            this.retryInitialPlacementSeconds = retryInitialPlacementSeconds;
         }
 
         public void setHeterogeneityJitter(double heterogeneityJitter) {

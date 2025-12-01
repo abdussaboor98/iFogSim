@@ -77,6 +77,18 @@ public class SimulationMain {
             controller.setCloudId(cloud.getId());
             controllers.add(controller);
             fogIndex++;
+
+            // Create edge devices for this fog node according to per-node configuration
+            for (int e = 0; e < nodeConfig.getEdgeDevices(); e++) {
+                ContainerProfile profile = config.getTask().getDefaultProfile();
+                ResourceCapacity tiny = new ResourceCapacity(500, 512, 1000);
+                EdgeDevice edge = new EdgeDevice(controller.getName() + "-edge-" + e, tiny, profile,
+                        config.getTask(), config.getTopology().getEdge(), config.getBidding(), config.getNetwork(), config.getSla(),
+                        config.getSimulation().getDurationSeconds(), config.getSimulation().getSeed() + e);
+                edge.setParentId(controller.getId());
+                edges.add(edge);
+                edgesByController.computeIfAbsent(controller.getName(), k -> new ArrayList<>()).add(edge);
+            }
         }
 
         // Ring neighbors
@@ -95,19 +107,7 @@ public class SimulationMain {
             }
         }
 
-        // Edge devices per fog node
-        for (FogNodeController controller : controllers) {
-            for (int i = 0; i < config.getTopology().getEdge().getDevicesPerFog(); i++) {
-                ContainerProfile profile = config.getTask().getDefaultProfile();
-                ResourceCapacity tiny = new ResourceCapacity(500, 512, 1000);
-                EdgeDevice edge = new EdgeDevice(controller.getName() + "-edge-" + i, tiny, profile,
-                        config.getTask(), config.getTopology().getEdge(), config.getBidding(), config.getNetwork(), config.getSla(),
-                        config.getSimulation().getDurationSeconds(), config.getSimulation().getSeed() + i);
-                edge.setParentId(controller.getId());
-                edges.add(edge);
-                edgesByController.computeIfAbsent(controller.getName(), k -> new ArrayList<>()).add(edge);
-            }
-        }
+        // Edge devices created per-fog during controller creation using FogNodeConfig.getEdgeDevices().
 
         if (mode == 1 && config.getGossip().isEnabled()) {
             double interval = config.getGossip().getIntervalSeconds();
