@@ -13,9 +13,9 @@ gossip:
 
 fault:
   predictionLeadSeconds: 120          # Enough time to allow some local recovery, but not trivial
-  meanTimeBetweenFailureSeconds: 180  # Fewer overlapping faults → reduces excessive local_infeasible
+  meanTimeBetweenFailureSeconds: 120  # Fewer overlapping faults → reduces excessive local_infeasible
   startDelaySeconds: 90
-  recoverySeconds: 210               # Recovery still meaningful under load
+  recoverySeconds: 120               # Recovery still meaningful under load
   cpuFailureProb: 0.33
   bandwidthDegradationProb: 0.34
   serverCrashProb: 0.33
@@ -27,7 +27,7 @@ bidding:
   resourceImpactK: 0.6
   bidTimeoutSeconds: 5.0
   retryMigrationSeconds: 1.0
-  maxMigrationRetries: 10
+  maxMigrationRetries: 100
 
 trust:
   enableTrust: true
@@ -49,10 +49,10 @@ sla:
   netOverheadRatio: 0.04
 
 task:
-  tasksPerEdge: 30               # Enough load but not extreme
+  tasksPerEdge: 32               # Enough load but not extreme
   meanInterArrivalSeconds: 160    # Balanced inflow; avoids 541 local-infeasible
   jitterPercent: 20
-  taskGenerationCutoffBufferRatio: 1.5  # Stop generating tasks when remaining time < 1.5x required execution time
+  taskGenerationCutoffBufferRatio: 1.6  # Stop generating tasks when remaining time < 1.5x required execution time
   defaultProfile:
     runtimeSeconds: 260
     demandMips: 700
@@ -117,7 +117,7 @@ topology:
     - name: fog-4
       servers: 4
       edgeDevices: 8
-      capacityMultiplier: 1
+      capacityMultiplier: 1.05
       serverCapacity:
         cpuMips: 2000
         ramMb: 4096
@@ -218,4 +218,4 @@ network:
   interFogLatencyMs: 8
   interFogBandwidthMbps: 1500    # Slightly higher so distributed migration is viable
   fogCloudLatencyMs: 70
-  fogCloudBandwidthMbps: 150     # Slow but not catastrophic
+  fogCloudBandwidthMbps: 800     # Higher bandwidth to make cloud competitive for migrations
