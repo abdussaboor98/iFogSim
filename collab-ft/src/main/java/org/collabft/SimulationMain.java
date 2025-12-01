@@ -102,7 +102,7 @@ public class SimulationMain {
                 ResourceCapacity tiny = new ResourceCapacity(500, 512, 1000);
                 EdgeDevice edge = new EdgeDevice(controller.getName() + "-edge-" + i, tiny, profile,
                         config.getTask(), config.getTopology().getEdge(), config.getBidding(), config.getNetwork(), config.getSla(),
-                        config.getSimulation().getSeed() + i);
+                        config.getSimulation().getDurationSeconds(), config.getSimulation().getSeed() + i);
                 edge.setParentId(controller.getId());
                 edges.add(edge);
                 edgesByController.computeIfAbsent(controller.getName(), k -> new ArrayList<>()).add(edge);

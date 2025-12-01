@@ -1,7 +1,7 @@
 simulation:
   mode: 1
   seed: 42
-  durationSeconds: 36000
+  durationSeconds: 36000      # 10 hours
 
 gossip:
   enabled: true
@@ -9,10 +9,10 @@ gossip:
   stalenessThresholdIntervals: 3
 
 fault:
-  predictionLeadSeconds: 300          # Enough time to allow some local recovery, but not trivial
-  meanTimeBetweenFailureSeconds: 600  # Fewer overlapping faults → reduces excessive local_infeasible
-  startDelaySeconds: 300
-  recoverySeconds: 240               # Recovery still meaningful under load
+  predictionLeadSeconds: 120          # Enough time to allow some local recovery, but not trivial
+  meanTimeBetweenFailureSeconds: 200  # Fewer overlapping faults → reduces excessive local_infeasible
+  startDelaySeconds: 90
+  recoverySeconds: 210               # Recovery still meaningful under load
   cpuFailureProb: 0.33
   bandwidthDegradationProb: 0.34
   serverCrashProb: 0.33
@@ -44,7 +44,7 @@ sla:
   netOverheadRatio: 0.04
 
 task:
-  tasksPerEdge: 20               # Enough load but not extreme
+  tasksPerEdge: 100               # Enough load but not extreme
   meanInterArrivalSeconds: 160    # Balanced inflow; avoids 541 local-infeasible
   jitterPercent: 20
   defaultProfile:

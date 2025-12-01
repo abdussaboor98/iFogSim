@@ -27,19 +27,22 @@ public class EdgeDevice extends FogDevice {
     private final SimulationConfig.SlaConfig slaConfig;
     private final int tasksToSend;
     private final double meanInterArrival;
+    private final double simulationDuration;
+    private final double scheduledMeanSpacing;
+    private final double maxTaskWindow;
     private final Random random;
     private int sentCount = 0;
 
     public EdgeDevice(String name, ResourceCapacity capacity, ContainerProfile profile, SimulationConfig.TaskConfig taskConfig,
                       SimulationConfig.EdgeConfig edgeConfig, SimulationConfig.BiddingConfig biddingConfig,
-                      SimulationConfig.Network networkConfig, SimulationConfig.SlaConfig slaConfig, long seed) throws Exception {
-        this(name, capacity, profile, taskConfig, edgeConfig, biddingConfig, networkConfig, slaConfig, seed,
+                      SimulationConfig.Network networkConfig, SimulationConfig.SlaConfig slaConfig, double simulationDuration, long seed) throws Exception {
+        this(name, capacity, profile, taskConfig, edgeConfig, biddingConfig, networkConfig, slaConfig, simulationDuration, seed,
                 FogDeviceFactory.build(capacity, new FogLinearPowerModel(40, 5)));
     }
 
     private EdgeDevice(String name, ResourceCapacity capacity, ContainerProfile profile, SimulationConfig.TaskConfig taskConfig,
                        SimulationConfig.EdgeConfig edgeConfig, SimulationConfig.BiddingConfig biddingConfig,
-                       SimulationConfig.Network networkConfig, SimulationConfig.SlaConfig slaConfig, long seed,
+                       SimulationConfig.Network networkConfig, SimulationConfig.SlaConfig slaConfig, double simulationDuration, long seed,
                        Components components) throws Exception {
         super(name,
                 components.characteristics(),
@@ -57,13 +60,20 @@ public class EdgeDevice extends FogDevice {
         this.slaConfig = slaConfig;
         this.tasksToSend = taskConfig.getTasksPerEdge();
         this.meanInterArrival = taskConfig.getMeanInterArrivalSeconds();
+        this.simulationDuration = simulationDuration;
+        if (tasksToSend > 0 && simulationDuration > 0) {
+            this.scheduledMeanSpacing = simulationDuration / tasksToSend;
+        } else {
+            this.scheduledMeanSpacing = -1;
+        }
+        this.maxTaskWindow = baseProfile.getRuntimeSeconds() * (1.0 + taskConfig.getSlaRuntimeMultiplier());
         this.random = new Random(seed);
     }
 
     @Override
     public void startEntity() {
         super.startEntity();
-        double firstDelay = exponential(meanInterArrival);
+        double firstDelay = computeNextDelay();
         scheduleNext(firstDelay);
     }
 
@@ -100,7 +110,7 @@ public class EdgeDevice extends FogDevice {
         send(getParentId(), totalDelay, CollabSimTags.TASK_ARRIVAL_EVENT,
                 new TaskProfile(sampled, arrivalTime, deadline, tExec, tNet, tSlack, tMig, getName()));
         sentCount++;
-        double nextDelay = applyJitter(exponential(meanInterArrival));
+        double nextDelay = computeNextDelay();
         send(getId(), delay + nextDelay, CollabSimTags.TASK_GENERATE);
     }
 
@@ -140,5 +150,28 @@ public class EdgeDevice extends FogDevice {
         double delta = v * (jitter / 100.0);
         double offset = (random.nextDouble() * 2 - 1) * delta;
         return Math.max(0, v + offset);
+    }
+
+    private double computeNextDelay() {
+        double minSpacing = Math.max(CloudSim.getMinTimeBetweenEvents(), 1e-6);
+        if (scheduledMeanSpacing <= 0) {
+            double delay = exponential(meanInterArrival);
+            return Math.max(minSpacing, applyJitter(delay));
+        }
+        double candidate = exponential(scheduledMeanSpacing);
+        double jittered = Math.max(candidate, minSpacing);
+        jittered = applyJitter(jittered);
+        jittered = Math.max(jittered, minSpacing);
+        int remainingTasks = Math.max(1, tasksToSend - sentCount);
+        double remainingTime = Math.max(0, simulationDuration - CloudSim.clock());
+        double maxAllowed = remainingTime - minSpacing * (remainingTasks - 1);
+        if (maxTaskWindow > 0) {
+            double bound = Math.max(minSpacing, remainingTime - maxTaskWindow);
+            maxAllowed = Math.min(maxAllowed, bound);
+        }
+        if (maxAllowed < minSpacing) {
+            maxAllowed = minSpacing;
+        }
+        return Math.min(jittered, maxAllowed);
     }
 }

@@ -15,7 +15,7 @@ import java.util.UUID;
 public class ContainerModule extends AppModule {
     private final String containerId = UUID.randomUUID().toString();
     private final ContainerProfile profile;
-    private final double deadlineTime;
+    private double deadlineTime;
     private double remainingWorkMi;
     private double lastStartTime = -1;
     private double expectedFinishTime = -1;
@@ -38,6 +38,7 @@ public class ContainerModule extends AppModule {
     private boolean slaSuccess;
     private double makespan = -1;
     private double completionTime = -1;
+    private boolean initialPlacementStarted;
 
     public ContainerModule(String name, String appId, int userId, TaskProfile profile) {
         this(name, appId, userId, profile.getContainerProfile(), profile.getDeadlineTime(), profile.getArrivalTime(),
@@ -76,6 +77,10 @@ public class ContainerModule extends AppModule {
 
     public double getDeadlineSeconds() {
         return deadlineTime;
+    }
+
+    public void setDeadlineSeconds(double deadlineSeconds) {
+        this.deadlineTime = deadlineSeconds;
     }
 
     public double getRemainingWorkMi() {
@@ -160,6 +165,20 @@ public class ContainerModule extends AppModule {
 
     public void setArrivalTime(double arrivalTime) {
         this.arrivalTime = arrivalTime;
+    }
+
+    public boolean isInitialPlacementStarted() {
+        return initialPlacementStarted;
+    }
+
+    public void startInitialPlacementWindow(double startTime) {
+        if (initialPlacementStarted) {
+            return;
+        }
+        double base = tExecSeconds + tNetSeconds + tSlackSeconds + tMigSeconds;
+        this.arrivalTime = startTime;
+        this.deadlineTime = startTime + base;
+        initialPlacementStarted = true;
     }
 
     public double getMigrationStart() {

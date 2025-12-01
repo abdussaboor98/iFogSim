@@ -36,6 +36,8 @@ public class FogNodeController extends FogDevice {
     private final Map<String, BidContext> winnerContexts = new HashMap<>();
     private final Map<String, Double> transferStarts = new HashMap<>();
     private final Set<String> settledContainers = new HashSet<>();
+    private final Queue<ContainerModule> initialPlacementQueue = new ArrayDeque<>();
+    private final Set<String> queuedInitialContainers = new HashSet<>();
     private int activeTransfers = 0;
     private final Queue<ContainerModule> pendingMigrations = new ArrayDeque<>();
     private List<Integer> neighborIds = new ArrayList<>();
@@ -356,6 +358,7 @@ public class FogNodeController extends FogDevice {
             transferStarts.remove(container.getContainerId());
             retryPendingMigrations();
         }
+        retryInitialPlacements();
     }
 
     private void handleTaskComplete(SimEvent ev) {
@@ -382,6 +385,7 @@ public class FogNodeController extends FogDevice {
             send(container.getOwnerId(), CloudSim.getMinTimeBetweenEvents(), CollabSimTags.TASK_COMPLETE, notice);
         }
         retryPendingMigrations();
+        retryInitialPlacements();
     }
 
     private void handleGossip(SimEvent ev) {
@@ -409,11 +413,16 @@ public class FogNodeController extends FogDevice {
             boolean faultPresent = servers.stream().anyMatch(FogServer::isFaulted);
             String reason = faultPresent ? "local_infeasible_fault" : "local_infeasible";
             MetricsRegistry.collector().recordPlacement(container.getContainerId(), getName(), "none", CloudSim.clock(), false, reason, loadsBefore);
-            migrateContainer(container, reason);
+            if (faultPresent) {
+                migrateContainer(container, reason);
+            } else {
+                queueInitialPlacement(container, reason);
+            }
             return;
         }
         MetricsRegistry.collector().recordPlacement(container.getContainerId(), getName(), target.getName(), CloudSim.clock(), true, "initial_local", snapshotServerLoads());
         container.setPaused(false);
+        startInitialSlaWindow(container);
         MetricsRegistry.collector().markTaskRunning(container, target.getName(), "initial_local", CloudSim.clock());
         scheduleCompletion(target, container);
     }
@@ -818,6 +827,61 @@ public class FogNodeController extends FogDevice {
                 migrateContainer(container, container.getMigrationTrigger().isEmpty() ? "queued_retry" : container.getMigrationTrigger());
             }
         }
+    }
+
+    private void queueInitialPlacement(ContainerModule container, String reason) {
+        if (queuedInitialContainers.contains(container.getContainerId())) {
+            return;
+        }
+        initialPlacementQueue.add(container);
+        queuedInitialContainers.add(container.getContainerId());
+        container.setPaused(true);
+        MetricsRegistry.collector().markTaskPending(container, reason, true, CloudSim.clock());
+    }
+
+    private void retryInitialPlacements() {
+        if (initialPlacementQueue.isEmpty()) {
+            return;
+        }
+        int attempts = initialPlacementQueue.size();
+        for (int i = 0; i < attempts; i++) {
+            ContainerModule container = initialPlacementQueue.poll();
+            if (container == null) {
+                continue;
+            }
+            if (tryQueueInitialPlacement(container)) {
+                queuedInitialContainers.remove(container.getContainerId());
+            } else {
+                initialPlacementQueue.offer(container);
+            }
+        }
+    }
+
+    private boolean tryQueueInitialPlacement(ContainerModule container) {
+        FogServer target = placeContainerLocally(container);
+        if (target == null) {
+            boolean faultPresent = servers.stream().anyMatch(FogServer::isFaulted);
+            if (faultPresent) {
+                MetricsRegistry.collector().markTaskPending(container, "local_infeasible_fault", false, CloudSim.clock());
+                migrateContainer(container, "local_infeasible_fault");
+                return true;
+            }
+            return false;
+        }
+        MetricsRegistry.collector().recordPlacement(container.getContainerId(), getName(), target.getName(), CloudSim.clock(), true, "initial_local_queue", snapshotServerLoads());
+        container.setPaused(false);
+        startInitialSlaWindow(container);
+        MetricsRegistry.collector().markTaskPending(container, "", false, CloudSim.clock());
+        MetricsRegistry.collector().markTaskRunning(container, target.getName(), "initial_local_queue", CloudSim.clock());
+        scheduleCompletion(target, container);
+        return true;
+    }
+
+    private void startInitialSlaWindow(ContainerModule container) {
+        if (container.isInitialPlacementStarted()) {
+            return;
+        }
+        container.startInitialPlacementWindow(CloudSim.clock());
     }
 
     private void registerCapacity() {
