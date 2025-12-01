@@ -485,19 +485,18 @@ Overall, the workflow creates a structured and flexible response to failures. It
 \State
 \State \textit{// Handle fault and checkpoint if possible}
 \State $sourceServer \gets$ server hosting container $c$
-\If{$f.type = $ SERVER\_CRASH}
+\If{$f$ is irrecoverable}
     \State Remove $c$ from $sourceServer$ without checkpointing
-    \State $c.resetProgress()$ \Comment{Work progress lost}
-\Else \Comment{CPU or bandwidth degradation}
+    \State $c.resetProgress()$ \Comment{Work progress lost, restart required}
+\Else \Comment{Fault is recoverable}
     \State Pause container $c$
     \State Checkpoint $c$ with current progress at time $t$
     \State Remove $c$ from $sourceServer$
 \EndIf
 \State
 \State \textit{// Phase 1: Attempt intra-fog migration}
-\State $localTarget \gets \text{SelectLocalServer}(c, S_i)$ \Comment{Best healthy server}
+\State $localTarget \gets$ default scheduler places $c$ on a healthy server in $S_i$
 \If{$localTarget \neq \text{null}$}
-    \State Place $c$ on $localTarget$
     \State Resume execution of $c$
     \State Record intra-fog migration
     \State \textbf{return}
@@ -520,6 +519,7 @@ Overall, the workflow creates a structured and flexible response to failures. It
 \If{$winner \neq \text{null}$ and $winner \neq $ cloud}
     \State Initiate transfer of $c$ to fog node $winner$
     \State Measure actual bandwidth $Actual_{bw}$ and migration time $T^{actual}_{mig}$
+    \State Winner's default scheduler places $c$ on appropriate server
     \State Record inter-fog migration
     \State \textbf{return}
 \EndIf
@@ -527,7 +527,7 @@ Overall, the workflow creates a structured and flexible response to failures. It
 \State \textit{// Phase 3: Cloud fallback}
 \If{cloud is available}
     \State Initiate transfer of $c$ to cloud
-    \State Resume or restart $c$ on cloud resources
+    \State Cloud's default scheduler places and resumes/restarts $c$
     \State Record cloud migration
 \Else
     \State Enqueue $c$ for retry when resources become available
