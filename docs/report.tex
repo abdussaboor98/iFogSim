@@ -19,11 +19,11 @@
 \usepackage{algpseudocode}
 
 
-\title{Collaborative Fautl Tolerance in Fog Computing using reverse auction and gossip}
+\title{Collaborative Fault Tolerance in Fog Computing using reverse auction and gossip}
 
 
 \author{
- Abdus Saboor Gaffari \\
+ Abdus Saboor Gaffari Mohammed \\
   Department of Computer Science and Engineering\\
   College of Engineering\\
   American University of Sharjah\\
@@ -43,21 +43,6 @@
   American University of Sharjah\\
   Sharjah, UAE \\
   \texttt{b00104949@aus.edu} \\
-  %% \AND
-  %% Coauthor \\
-  %% Affiliation \\
-  %% Address \\
-  %% \texttt{email} \\
-  %% \And
-  %% Coauthor \\
-  %% Affiliation \\
-  %% Address \\
-  %% \texttt{email} \\
-  %% \And
-  %% Coauthor \\
-  %% Affiliation \\
-  %% Address \\
-  %% \texttt{email} \\
 }
 
 \begin{document}
@@ -69,12 +54,57 @@
 
 
 % keywords can be removed
-%\keywords{First keyword \and Second keyword \and More}
+\keywords{fog computing \and fault tolerance \and collaborative \and reverse auction \and gossip \and trust}
 
 % ###############################################################
 %       Introduction
 % ###############################################################
 \section{Introduction}
+
+Internet of Things (IoT) systems have moved from small prototypes to infrastructure that entire cities and businesses depend on. Smart traffic lights, industrial plants, retail analytics, energy grids, and even campus security all rely on streams of sensor data that must be processed in near real time. Sending everything to a distant cloud data center is often too slow and too expensive in terms of bandwidth, and it can expose critical services to wide-area network failures. This has driven the rise of edge and fog computing, where at least part of the computation is brought closer to where data is produced. Fog computing in particular introduces a distributed layer of compute, storage, and networking between edge devices and central clouds, hosted on gateways, micro data centers, base stations, or other intermediate nodes.\cite{dasReviewFogComputing2023}
+
+
+In a typical edge-fog-cloud hierarchy, resource-constrained edge devices such as cameras, sensors, or embedded controllers generate tasks that cannot be fully processed locally. These tasks are offloaded to more powerful fog nodes, which aggregate and process data from many nearby devices, and then optionally forward summaries or heavier workloads to the cloud for deeper analytics or long term storage. This layered model can significantly reduce end-to-end latency and wide-area traffic compared to cloud-only deployments, while still benefiting from the elasticity and global visibility of the cloud\cite{fernandoEdgeFogCloudCollaborationReaping2025}.
+
+
+However, gaining these benefits comes with a price. Fog nodes typically do not have the scale, redundancy, or environmental control of large cloud data centers. They are deployed in diverse locations, may be owned by different organizations, and are often shared across multiple applications\cite{yiSurveyFogComputing2015}. As a result they are exposed to a wide range of faults: hardware failures, resource exhaustion under bursty demand, performance degradation, and network issues that can isolate parts of the hierarchy. Since individual fog nodes host many latency sensitive tasks, even a single node failure or severe slowdown can cascade into missed deadlines, poor user experience, or outright service outages \cite{macielSurveyReliabilityAvailability2022}.
+
+
+Fault tolerance (FT) is therefore a central requirement for realistic fog deployments. In distributed and cloud systems, FT is commonly divided into reactive and proactive techniques. Reactive FT focuses on detecting a fault after it happens and recovering from it, for example by restarting a failed component, rolling back to a checkpoint, or failing over to another server. Proactive FT attempts to anticipate faults and act before they affect service, for example by monitoring indicators of impending failure and moving work away from risky nodes in advance \cite{shahidResilientMethodExhaustive2021}. Reactive approaches are often simpler and do not require prediction, but they can still allow short outages, lost progress, or SLA violations. Proactive approaches can reduce downtime and improve availability, but they depend on reasonably accurate prediction and careful coordination to avoid unnecessary overhead. In practice, robust systems tend to rely on a combination of both styles \cite{hasanProactiveFaultTolerance2024}.
+
+
+Container technologies make proactive and reactive FT particularly attractive in fog environments. Containers encapsulate an application and its dependencies in a lightweight, portable unit that can be started, paused, checkpointed, and resumed on different servers with relatively low overhead compared to full virtual machines. Modern checkpoint and restore tools allow the in-memory state of a running container to be captured and migrated, which enables live or near-live relocation of work when a node is predicted to fail or when it becomes overloaded \cite{chengFogFunctionServerless2019}. For IoT workloads that need to keep running close to the edge, container-based migration is a natural building block for FT.
+
+
+Beyond technical mechanisms, fog computing also has an important organizational dimension. Unlike a single cloud data center controlled by one provider, a wide-area fog deployment is often multi-owner. A telecom operator may host fog nodes at base stations, a municipality may deploy fog resources for smart city services, and private companies or campuses may add their own edge infrastructure. These different parties may agree to collaborate, but they do not form a single centrally controlled pool. Each fog node has its own local policies and economic incentives. A node might be willing to host additional containers for a neighbor if it has spare capacity and receives some compensation, but it should be able to decline if doing so would jeopardize its own SLAs or violate policy.
+
+
+This multi-owner setting changes how FT can be designed. Many existing FT schemes for cloud or fog assume a central scheduler with an accurate global view that can simply assign or reassign tasks wherever it sees fit. Other work focuses on technical migration triggers or scheduling heuristics without considering that nodes might strategically misreport their available resources or migration costs if there is a benefit in doing so. As a result, there is a gap between the algorithms described in much of the FT literature and the behavior we should expect in a realistic, economically motivated fog ecosystem.
+
+
+Across these works, a couple of important gaps stand out. Current container based fault tolerance mechanisms for fog computing still lean heavily on centralized schedulers or brokers that decide where containers should move, as in \cite{palaContainerMigrationApproach2025,kashyapHybridApproachFaulttolerance2024b}. In practice, this can leave individual fog nodes with little say in whether they accept migrated workloads, even when their local conditions or policies suggest they should decline. At the same time, these approaches treat migration largely as a control decision made from the top, rather than as a collaborative process in which independently owned fog nodes express their preferences, constraints, and costs. As a result, the literature offers limited support for decentralized, locally informed migration decisions where fog nodes can negotiate, accept, or reject incoming containers based on their real time state, which is exactly the sort of autonomy we would expect in realistic multi owner fog deployments.
+
+
+Our work aims to bridge this gap by viewing FT in fog computing as a collaborative, market-like process rather than a centrally imposed one. We consider a three layer edge-fog-cloud architecture where tasks from stationary edge devices are packaged into containers and executed primarily at the fog layer. An external prediction module (for example, a machine learning model trained on performance and health metrics) flags servers that are likely to experience faults in the near future. When such a prediction arrives, the system treats all containers on the affected server as at risk and seeks to relocate them before the fault materializes. If the prediction is wrong or a fault occurs unexpectedly, the same machinery can be used in a reactive mode to migrate or restart containers after the fact.
+
+
+Instead of assuming that a central controller can dictate where these containers move, we design the decision process as a collaboration between fog nodes. Potential destination nodes receive information about containers that need to be moved and can place bids indicating the compensation they require and the conditions under which they can host the work. A reverse auction mechanism then selects winners, favoring nodes that offer a good balance of resource availability, cost, and historical reliability. At the same time, a lightweight gossip protocol spreads summarized load and reputation information across the fog layer so that nodes do not need a perfectly accurate global view but still have a reasonably up to date sense of the health of their neighbors. Over time, nodes that misreport their capabilities or frequently violate SLAs see their trust scores and chances of winning auctions decrease, while honest, dependable nodes are rewarded with more opportunities and greater revenue.
+
+
+From a broader perspective, this approach treats FT in fog computing as both a technical and a socio-economic problem. Technically, we must move containers quickly enough, often enough, and to appropriate destinations so that services stay within their latency and reliability targets. Economically, we must design incentives so that independently administered fog nodes actually want to participate in the FT process, report their local state truthfully, and cooperate even when they are not under direct control of a single authority. By combining container-based migration, proactive prediction, reverse auctions, and gossip, our framework aims to provide a realistic path toward FT that respects the autonomy of each node while still behaving like a coordinated system from the perspective of applications.
+
+
+The contributions made by this work are summarized as follows:
+\begin{enumerate}
+    \item We design a three layer collaborative framework that spans edge, fog, and cloud. Edge devices generate computational tasks, the fog layer hosts them inside containerized environments, and the cloud serves as a backup and a point for large scale coordination. Within this hierarchy, fog nodes are able to communicate and cooperate when one node faces a fault or heavy load, so that services can keep running smoothly even when part of the infrastructure is under stress.
+    
+    \item We enable flexible migration strategies that support container movement within a single fog node (intra fog), across neighbouring fog nodes (inter fog), and from the fog layer to the cloud when local resources are no longer sufficient. Migration decisions take into account available resources, predicted faults, and current network conditions. This adaptability helps maintain continuous and reliable service execution under changing workload and failure patterns.
+    
+    \item We introduce distributed decision making at the fog layer. Each fog node monitors the health and utilization of its own servers and collaborates with nearby nodes when selecting migration targets. This removes the need for a single centralized controller, allows nodes to react more quickly to local events, and improves reliability during fault recovery by avoiding a single point of control.
+    
+    \item We propose a collaborative design that keeps most of the control logic and negotiation close to the fog layer, which helps reduce delay and network overhead. Even if some servers fail or become unreliable, other fog nodes can step in, accept migrated containers, and restore service with minimal disruption. In this way, the framework aims to offer fault tolerance that better matches the latency, resilience, and autonomy requirements of real world fog computing deployments.
+\end{enumerate}
+
 
 
 % ###############################################################
@@ -117,41 +147,62 @@ Across these works, several gaps remain evident. Existing fog and container-faul
 %       Methodology
 % ###############################################################
 
-\section{Methodology / Materials and Methods} \label{sec:methodology}
+\section{Methodology} \label{sec:methodology}
 
 % ###############################################################
 %       Proposed Approach
 % ###############################################################
 \subsection{Proposed Approach}
-The proposed framework introduces a collaborative fault-tolerant model for fog computing in which autonomous fog nodes cooperate to maintain service continuity when failures are predicted or detected. The system operates within a multi-tier edge–fog–cloud hierarchy, where fog nodes act as the primary execution layer and collaborate only when necessary, without relying on any centralized controller or forced offloading. Collaboration emerges through decentralized, voluntary interactions between independently administered fog nodes, enabling both proactive FT through early migration and reactive FT when faults occur unexpectedly.
+We propose a collaborative fault-tolerant model for fog computing by employing autonomous fog nodes that cooperate with each other to maintain the business continuity when failures are predicted or detected. The system is laid out in a multi-tier edge-fog-cloud hierarchical structure wherein the fog nodes act as the main execution layer and collaborate only when necessary. The collaboration happens in a decentralized manner via voluntary interactions between the independently administered fog nodes, which enables both proactive fault tolerance through early migration and reactive fault tolerance whenever faults occur unexpectedly. 
 
-Two core mechanisms underpin the collaborative behavior. First, a gossip-based state dissemination protocol allows each fog node to gradually build an eventually complete and consistent view of the global resource state. By exchanging periodic summaries of CPU, memory, and bandwidth loads across a lightweight logical topology, fog nodes gain situational awareness without broadcasting costly global messages. This state is not required to be perfectly synchronized; instead, it serves as a sufficiently accurate substrate for decentralized decision-making during fault recovery. Second, a reverse-auction mechanism enables multi-owner fog nodes to negotiate container placements when local recovery is not possible. A node experiencing a predicted or actual fault initiates an auction in which candidate fog nodes respond with bids reflecting their capacity and estimated migration cost. Collaborative FT emerges because nodes voluntarily participate, compete, and are compensated for accepting foreign containers, unlike forced or centrally dictated offloading.
+The model consists of two core mechanisms that make such collaborative behavior possible. First, a gossip-based state dissemination protocol which allows each fog node to gradually build a complete and consistent view of the global resource state. Done by exchanging periodic summaries of the CPU, memory, and bandwidth loads across a lightweight logical topology that helps fog nodes gain the situational awareness without broadcasting costly global messages. This state need not be perfectly synchronized; rather, it serves as an adequate foundation for the decentralized decision-making during fault recovery. 
+Second, a reverse-auction mechanism which lets the individual fog nodes negotiate the container placements in a scenario where local recovery is not possible . A node experiencing a predicted or actual fault initiates an auction where candidate fog nodes respond with bids reflecting their capacity and the estimated migration cost. The collaborative fault tolerance is made possible because the nodes voluntarily participate, compete, and are compensated for accepting foreign containers, unlike forced or centrally dictated offloading.
 
-The fault-tolerance workflow operates through a concise three-stage migration strategy: (i) intra-fog migration attempts to relocate containers within the same fog node whenever a healthy server is available; (ii) if local recovery is infeasible, inter-fog migration is triggered, where candidate fog nodes are evaluated using gossip-informed scoring and reverse-auction bidding; and (iii) if no suitable collaborator exists, the task is escalated to the cloud as a final fallback.
+There are three stages to the fault tolerance module: 
+(i) Intra-fog migration attempts to migrate containers within the same fog node whenever a healthy server is available
+(ii) if local recovery is not feasible, inter-fog migration is triggered, where the candidate fog nodes are evaluated using the aforementioned gossip-informed scoring and reverse-auction bidding
+(iii) In the event that absolutely no suitable collaborator exists, the task is escalated to the cloud as a final fallback.
 
-The framework executes tasks in lightweight, migratable containers to allow seamless pausing, checkpointing, transfer, and resumption across servers or fog nodes. This ensures that when a fault is predicted, all containers on the affected server are immediately checkpointed and migrated. If an unexpected fault occurs, the resulting behavior depends on the fault type: CPU and bandwidth degradations still permit checkpointing, whereas crashes cause complete loss of progress, requiring immediate restart elsewhere.
+The model executes tasks in a lightweight, migratable container format, which allows seamless pausing, checkpointing, transferring, and resumption across the servers or fog nodes.   This guarantees that when a fault is predicted, all containers on the affected server are immediately checkpointed and relocated. In case of unexpected faults, the resulting behavior depends on the fault type, like CPU and bandwidth degradations still permit checkpointing, whereas crashes cause complete loss of progress, requiring immediate restart elsewhere \cite{palaContainerMigrationApproach2025}.
 
-By combining container-based execution, gossip-driven distributed awareness, and reverse-auction–based negotiation, the proposed system provides a decentralized, prediction-aware, and economically aligned FT architecture suitable for heterogeneous, multi-owner fog environments.
+Therefore, by combining container-based execution with gossip-driven distributed awareness and a reverse-auction based negotiation, the proposed approach provides a decentralized, prediction-aware, and economically aligned FT architecture which is suitable for heterogeneous, multi-owner fog environments.
 
 % ###############################################################
 %       System Model
 % ###############################################################
 \subsection{System Model}
-The system consists of three interconnected layers: edge devices, fog nodes, and a cloud layer that provides a global but slower and more resource-intensive fallback. As shown in the architectural model, each fog node hosts multiple heterogeneous servers managed by a local control layer and an FT predictor module. The fog layer forms the main execution substrate, processing tasks originating from stationary edge devices. These devices continuously generate indivisible tasks that must run to completion and therefore cannot be split or distributed across servers. Each task executes inside a dedicated container, and each server can host multiple such containers concurrently, constrained only by its CPU, RAM, and bandwidth capacities. Containers can be paused, checkpointed, migrated, and resumed across any fog server or cloud resource, allowing mobility in response to failures.
 
-The system assumes a multi-owner fog environment, where each fog node is controlled by an independent administrator. Nodes may strategically misreport internal metrics such as CPU load, memory usage, bandwidth availability, or expected migration time. However, they cannot fake observable outcomes, including actual migration duration, SLA adherence, or execution-time overload. This distinction is essential: misreporting affects negotiation, but actual behavior determines accountability. The framework embeds this assumption directly into its FT logic rather than treating it as an external constraint.
+\begin{figure}
+    \centering
+    \includegraphics[width=0.85\linewidth]{model.png}
+    \caption{Proposed system model architecture}
+    \label{fig:model}
+\end{figure}
 
-Tasks arriving at a fog node are placed onto the best available server based on that node’s own local scheduling policy. The proposed FT framework does not modify this placement algorithm; instead, it activates only when faults occur or are predicted. The FT predictor is assumed to exist and guarantees perfect predictions: no false positives or false negatives. Thus, every predicted fault will occur, and any server not flagged by the predictor is considered safe until a new prediction arises.
+As discussed previously. The architecture consists of three layers formed by: the edge devices, fog nodes, and a cloud layer that acts as a global fallback. Each fog consists of multiple heterogenous servers which are managed by a local control layer and an FT predictor module.
+The fog layer creates the main execution foundation and processes the tasks originating from stationary edge devices. These devices constantly generate indivisible tasks that must run to completion and therefore cannot be divided or distributed across servers. Each task is executed inside a dedicated container, and each server can host a multitude of such containers concurrently, constrained only by its CPU, RAM, and bandwidth capabilities. A container can be paused, checkpointed, migrated, and resumed across any fog server or cloud resource, allowing mobility in a response to failures \cite{palaContainerMigrationApproach2025}.
+ 
+The system is modelled on the assumption of a multi-owner fog environment, where each fog node is being controlled by an independent administrator. A Node may strategically misreport its internal metrics,such as CPU load, memory usage, bandwidth availability, or expected migration time. However, they cannot fake the observable outcomes, including the actual migration duration, SLA adherence, or the execution-time overload.  This distinction is vital as misreporting affects negotiation, but actual behavior determines the nodes’ accountability. The framework embeds this assumption directly into its FT logic rather than treating it as an external constraint.
 
-Three types of faults are considered: CPU degradation, bandwidth degradation, and server crash. While these faults differ in operational impact, the FT model treats them uniformly in terms of triggering migration, except for one distinction: crashes render servers completely inaccessible, causing absolute loss of container progress, whereas degradations allow checkpointing before migration. The fog-to-cloud communication path exhibits significantly higher latency and lower bandwidth than inter-fog communication links, reinforcing the preference for local or inter-fog recovery before escalating to the cloud.
+Tasks arriving at a particular fog node are encapsulated in a new container and placed on the best available server via that node’s own local scheduling policy. The proposed FT framework does not modify this placement algorithm; instead, it comes into play only when faults are predicted or have occurred. The FT predictor is assumed to guarantee a perfect prediction, which means no false positives or false negatives. Thus, every predicted fault will definitely occur, and any server not flagged by the predictor is considered safe until a new prediction arises.
 
-This system model enables decentralized interaction among fog nodes, preserves each operator’s autonomy, supports truthful or untruthful behavior within defined limits, and leverages containerization to provide strong fault-migration guarantees across the hierarchy.
+We consider three types of faults: CPU degradation, bandwidth degradation, and server crash. While these faults vary in their operational impact, the FT model treats them equally in terms of triggering the migration, except for one distinction: a crash renders the servers completely inaccessible, causing absolute loss of container progress and requiring restarting, whereas degradations allow checkpointing before migration. The fog-to-cloud communication path is set to have significantly higher latency and lower bandwidth than inter-fog communication links, reinforcing the preference for local or inter-fog recovery before escalating and falling back to the cloud.
+
+This system model enables a decentralized interaction between the fog nodes while preserving each operator’s autonomy and supporting truthful or untruthful behavior within defined limits, and leverages containerization to provide strong fault-migration guarantees across the hierarchy.
+
 
 \subsection{Gossip Protocol}
 
 As the proposed collaborative FT system does not rely on any central coordinator for maintaining global visibility we adopt a lightweight and scalable mechanism for disseminating resource availability information among fog nodes. The framework uses an eventual consistency gossip protocol that lets each fog node keep an approximate, but still fairly current view of the system wide resource availability without relying on full broadcast. As the environment involves multi owner fog nodes, this mechanism allows the information exchange to stay light and decentralized, while still providing enough shared visibility for early FT decisions. This eventually consistent state information also allows the fog nodes to make earlier decisions, since even an approximate and slightly stale view can still guide quick migration choices before a fault fully materializes.
 
-In this mechanism every node maintains a table with its knowledge of the whole system’s state, called $StateTable_i$. To keep the network usage to a minimum we adopt a ring topology for the gossip dissemination through the system. In this topology, every fog node has a designated fog node that it receives an update from and a designated fog node that it sends the update to. 
+\begin{figure}
+    \centering
+    \includegraphics[width=0.35\linewidth]{ring.png}
+    \caption{Ring topology between the fog nodes for gossip}
+    \label{fig:gossip-ring}
+\end{figure}
+
+In this mechanism every node maintains a table with its knowledge of the whole system’s state, called $StateTable_i$. To keep the network usage to a minimum we adopt a ring topology for the gossip dissemination through the system as shown in Fig. \ref{fig:gossip-ring}. In this topology, every fog node has a designated fog node that it receives an update from and a designated fog node that it sends the update to. 
 Each fog node periodically snapshots its internal load conditions using the normalized CPU, memory, and bandwidth loads given by the below equations:
 
 \begin{equation}
@@ -564,6 +615,13 @@ When neither local nor inter-fog recovery is possible, the workflow sends the co
 
 Overall, the workflow creates a structured and flexible response to failures. It prioritizes local recovery, leverages distributed scoring and auction-based cooperation when needed, and uses the cloud only as a final fallback. This layered approach maintains task continuity across both predicted and unexpected fault scenarios, even in environments where fog nodes might misreport their state or behave strategically.
 
+\begin{figure}
+    \centering
+    \includegraphics[width=0.85\linewidth]{workflow.png}
+    \caption{FT Migration Workflow}
+    \label{fig:workflow}
+\end{figure}
+
 \begin{algorithm}[h!]
 \caption{Collaborative Migration Workflow at Fog Node $i$}
 \label{alg:migration_workflow}
@@ -690,45 +748,17 @@ Intra-fog placements always yield zero payment, and cloud placements follow the 
 \end{algorithmic}
 \end{algorithm}
 
-
-\subsection{Effectiveness of Solution}
-This section explains how the proposed system behaves when fog nodes try to behave strategically or dishonestly. The explanations are written as different scenarios that walk through what happens in each case. The reasoning still comes from the mechanisms already described earlier, such as the bidding formulation, the gossip scoring, the trust update equations with the two-phase adjustments, and the SLA-based evaluation that happens naturally after execution. The goal here is not to introduce anything new, but just to show how the pieces already introduced end up supporting the system even when nodes do not behave nicely.
-
-\begin{description}
-
-\item[Scenario 1: A fog node understates its bid.]
-If a fog node tries to understate its bid by claiming a smaller migration time or a lower resource impact than what it actually has, then it might look attractive at first. It may even win a bid occasionally because the origin node simply sees a lower cost. But as soon as the container finishes migration, the actual bandwidth and the actual migration duration are measured using the equations already given for \(B_{actual}\) and the real \(T_{\text{mig,actual}}\). When the claimed numbers and the actual numbers do not match, the relative errors appear, and these errors immediately activate the multiplicative trust decay in Phase 1 of the trust update. And once that happens, the trust value decreases and the node’s future effective bids become much higher because effective bids divide by trust. So the node that understates its bid ends up becoming less competitive later. This means the short-term gain is lost quickly, and in many cases it becomes much worse off. So understating a bid does not really help the node, and the system naturally pushes it out.
-
-\item[Scenario 2: A fog node overstates its bid.]
-If a fog node overstates its bid and reports a much higher cost than necessary, the system does not punish it with trust decay because the actual measurements still match what was claimed. But this behavior still does not work out well for the node. The inflated bid simply places it at the bottom of the winner selection, and because winner selection always tries to reduce the effective bid, such a node almost never gets chosen. In some sense, the node excludes itself by being too expensive. This means overstating does not give any advantage, and it slowly pushes the node away from being part of the collaboration. The system does not need to punish it, because the bidding logic already does that indirectly.
-
-\item[Scenario 3: A fog node lies about bandwidth or migration time.]
-A fog node may try to lie by putting nicer claimed bandwidth or shorter claimed migration times into its bid. But once the migration actually takes place, the real transfer bandwidth and the real migration duration can be computed directly from the observed transfer using the earlier equations. These measured values go into the relative error formulas, and when the discrepancy becomes noticeable, the thresholds for dishonesty are crossed. As soon as that happens the trust update does the multiplicative penalty, and sometimes the additive one too if the SLA is also harmed. And because trust affects the effective bid so strongly, even a few dishonest bids make the node almost impossible to select in future migrations. So lying about bandwidth or migration time is always detected eventually because we do not rely on the claimed values, we rely on what actually happened.
-
-\item[Scenario 4: A fog node lies about CPU or RAM load.]
-CPU and memory dishonesty is a bit harder because these values cannot be checked directly during the bidding process. But they show up later through the SLA margin. If a fog node lies and says it has plenty of available CPU or RAM and then tries to run the container with less than promised, the execution slows down. The actual completion time becomes larger, and the SLA margin becomes negative, and this automatically triggers the additive trust penalty in Phase 2. If this continues to happen multiple times, the trust value keeps dropping. Once trust goes below the threshold, the node stops being considered at all. So even though the system does not directly check CPU or RAM claims, it relies on the SLA margin to expose dishonesty. And since SLA violations are observed facts, a fog node cannot hide the results of its lies.
-
-\item[Scenario 5: A fog node lies in the gossip state.]
-A fog node may try to cheat by reporting a lighter load in the gossip state, hoping to look more attractive when scores are calculated. But gossip load values come from actual server measurements, so this type of lying is already constrained. And even if the node could somehow lower its reported load, it still has to execute the containers that it attracts. If it is actually overloaded, execution slows down and that leads to SLA violations. And these SLA violations directly activate the additive penalty in the trust update. So even if gossip lying helped in the short term, the resulting poor performance would appear very quickly, and trust would decrease. And since lower trust makes bidding worse, the node eventually stops being selected anyway. So lying in gossip does not really help, and eventually it becomes counterproductive.
-
-\item[Scenario 6: A fog node uses multiple dishonest strategies together.]
-A fog node may think that if it mixes different types of lies, like fake gossip values, wrong CPU load reports, underestimated migration times, or overstated bandwidth, then maybe the system cannot catch all of it. But because the trust update works in two separate phases, and because SLA outcomes are always observable, the penalties accumulate. Migration dishonesty activates the multiplicative decay in Phase 1. SLA dishonesty activates the additive penalty in Phase 2. When both happen together, the trust falls even faster. Once trust becomes small, the effective bid becomes extremely large, and the node almost never gets selected. So combining dishonest behaviors does not hide anything; instead it accelerates exclusion from the collaboration.
-
-\end{description}
-
-These scenarios show, in a practical and scenario-driven way, that the mechanisms introduced earlier work together so that lying or misreporting is not a sustainable strategy. The system keeps moving toward nodes that behave honestly, because honest nodes naturally get better trust, better effective bids, and fewer penalties. The result is that the proposed FT system remains stable and cooperative even when nodes try to game the process.
-
 \subsection{Experimental Setup}
 
 The evaluation of the proposed collaborative FT approach was conducted using a customized version of iFogSim2\footnote{https://github.com/Cloudslab/iFogSim} that we modified to support all components of our design, including container-level execution, checkpointing, migration, gossip-driven state dissemination, urgency-aware scoring, reverse-auction bidding, and trust-based negotiation. These extensions allowed the simulator to faithfully reproduce the behavior of the proposed mechanisms rather than relying on the default iFogSim model. All workloads, failures, and communication events were generated synthetically within the modified simulator, enabling controlled experiments and full reproducibility without reliance on external datasets.
 
-Table~\ref{tab:system_config} summarizes the system-level configuration used in all experiments. The simulated environment consists of ten fog nodes arranged in a logical ring for gossip communication. Each fog node hosts three to four heterogeneous servers with capacities in the range of \(C^{s}_{cpu} \in [2000, 2200]\) MIPS, \(C^{s}_{mem} = 4096\) MB, and \(C^{s}_{bw} \in [3500, 4500]\) Mbps. Each fog node is connected to six stationary edge devices that continuously generate tasks. Cloud resources were provisioned with significantly higher capacity to serve as a reliable fallback destination. Network delays follow the fog-computing hierarchy, where edge--fog links are fastest, inter-fog communication is moderately fast, and fog--cloud links are slower and more bandwidth-constrained.
+Table~\ref{tab:system_config} summarizes the system-level configuration used in all experiments. The simulated environment consists of ten fog nodes arranged in a logical ring for gossip communication. Each fog node hosts three to five heterogeneous servers with capacities ranging from \(C^{s}_{cpu} \in [2000, 4000]\) MIPS, \(C^{s}_{mem} \in [4096, 8192]\) MB, and \(C^{s}_{bw} \in [3500, 9000]\) Mbps. Unlike uniform configurations, the topology employs heterogeneous capacity multipliers ranging from 1.0 to 1.2 across fog nodes, creating realistic resource imbalances. Each fog node is connected to a variable number of stationary edge devices, ranging from 2 to 10 devices per node, that continuously generate tasks. Cloud resources were provisioned with significantly higher capacity to serve as a reliable fallback destination. Network delays follow the fog-computing hierarchy, where edge-fog links are fastest, inter-fog communication is moderately fast, and fog-cloud links are slower and more bandwidth-constrained.
 
-Table~\ref{tab:workload_fault_config} summarizes the faults, workload parameters, bidding configuration, trust parameters, and SLA specifications used in the experiment. Faults are generated according to a Poisson distribution. The faults are injected and arrive with a mean inter-failure time of 60 seconds, and each fault includes a prediction window of 300 seconds and a recovery time of 240 seconds. Three types of faults are considered namely: CPU degradation, bandwidth degradation, and server crash, which follow the probabilities listed in the Table~\ref{tab:workload_fault_config}. CPU and bandwidth degradations allow the system to checkpoint containers before migrating them, while server crashes cause complete loss of progress. During inter-fog migration, fog nodes respond with bids computed using the claimed migration time and resource impact formulations defined in Equations \ref{eq:claimed_mig} and \ref{eq:impact}, parameterized by the constants \(k\), \(t_{pause}\), and \(t_{resume}\). Trust scores evolve according to measured discrepancies in bandwidth and migration honesty, SLA behavior, and passive recovery, governed by the thresholds \(\tau_{bw}\), \(\tau_{mig}\), and \(\tau_{sla}\).
+Table~\ref{tab:workload_fault_config} summarizes the faults, workload parameters, bidding configuration, trust parameters, and SLA specifications used in the experiment. Faults are generated according to a Poisson distribution. The faults are injected and arrive with a mean inter-failure time of 120 seconds, and each fault includes a prediction window of 120 seconds and a recovery time of 120 seconds. Three types of faults are considered namely: CPU degradation, bandwidth degradation, and server crash, which follow the probabilities listed in the Table~\ref{tab:workload_fault_config}. CPU and bandwidth degradations allow the system to checkpoint containers before migrating them, while server crashes cause complete loss of progress. During inter-fog migration, fog nodes respond with bids computed using the claimed migration time and resource impact formulations defined in Equations \ref{eq:claimed_mig} and \ref{eq:impact}, parameterized by the constants \(k\), \(t_{pause}\), and \(t_{resume}\). Trust scores evolve according to measured discrepancies in bandwidth and migration honesty, SLA behavior, and passive recovery, governed by the thresholds \(\tau_{bw}\), \(\tau_{mig}\), and \(\tau_{sla}\).
 
-Task workloads were selected to produce realistic load conditions across the fog layer. Each edge device generates 20 tasks with exponential inter-arrival times, using configurable jitter. Resource requirements for tasks including CPU, memory, bandwidth, runtime, and container size, are sampled from the value ranges shown in Table~\ref{tab:workload_fault_config}. SLA deadlines scale with task runtime according to the multiplier provided in the configuration.
+Task workloads were selected to produce realistic load conditions across the fog layer. Each edge device generates 32 tasks that arrive at random times during the simulation, with a configurable jitter. Resource requirements for tasks including CPU, memory, bandwidth, runtime, and container size, are sampled from the value ranges shown in Table~\ref{tab:workload_fault_config}. SLA deadlines scale with task runtime according to the multiplier provided in the configuration.
 
-A baseline system was implemented for comparison, identical to the proposed mode except that gossip dissemination, trust scoring, and auction-based collaboration were disabled. Instead, all migration decisions were handled by a centralized scheduler. The centralized scheduler has realtime global view of all servers capacities and it can force fog nodes to take on containers that it wants to migrate. This allowed direct comparison between our decentralized collaborative FT approach and a simplified centralized system under identical workload and fault conditions.
+A baseline system was implemented for comparison, identical to the proposed approach except that gossip dissemination, trust scoring, and auction-based collaboration were disabled. Instead, all migration decisions were handled by a centralized scheduler. The centralized scheduler has realtime global view of all servers capacities and it can force fog nodes to take on containers that it wants to migrate. This allows direct comparison between our decentralized collaborative FT approach and a simplified centralized system under identical workload and fault conditions.
 
 \begin{table}[h!]
 \centering
@@ -743,12 +773,13 @@ A baseline system was implemented for comparison, identical to the proposed mode
 % Simulation Duration & 3600 s \\
 % \midrule
 Number of Fog Nodes & 10 \\
-Servers per Fog Node & 3--4 \\
-CPU Capacity per Server ($C^{s}_{cpu}$) & 2000--2200 MIPS \\
-Memory per Server ($C^{s}_{mem}$) & 4096 MB \\
-Bandwidth per Server ($C^{s}_{bw}$) & 3500--4500 Mbps \\
-Storage per Server & 100000 MB \\
+Servers per Fog Node & 3--5 \\
+CPU Capacity per Server ($C^{s}_{cpu}$) & 2000--4000 MIPS \\
+Memory per Server ($C^{s}_{mem}$) & 4096--8192 MB \\
+Bandwidth per Server ($C^{s}_{bw}$) & 3500--9000 Mbps \\
+Storage per Server & 100000--200000 MB \\
 Uplink/Downlink Bandwidth & 6000--9000 Mbps \\
+Capacity Multiplier Range & 1.0--1.2 \\
 \midrule
 Cloud CPU Capacity & 9000 MIPS \\
 Cloud Memory & 45000 MB \\
@@ -756,7 +787,7 @@ Cloud Bandwidth & 40000 Mbps \\
 Cloud Storage & 200000 MB \\
 Cloud Uplink/Downlink & 40000 Mbps \\
 \midrule
-Edge Devices per Fog Node & 6 \\
+Edge Devices per Fog Node & 2--10 (variable) \\
 Edge Latency & 3 ms \\
 Edge Bandwidth & 1500 Mbps \\
 Edge Heterogeneity Jitter & 10\% \\
@@ -764,7 +795,7 @@ Edge Heterogeneity Jitter & 10\% \\
 Inter-Fog Latency & 8 ms \\
 Inter-Fog Bandwidth & 1500 Mbps \\
 Fog-Cloud Latency & 70 ms \\
-Fog-Cloud Bandwidth & 150 Mbps \\
+Fog-Cloud Bandwidth & 800 Mbps \\
 \midrule
 Gossip Enabled & True \\
 Gossip Interval & 7 s \\
@@ -782,10 +813,10 @@ Gossip Staleness Threshold & 3 intervals \\
 \textbf{Category} & \textbf{Parameter and Value} \\
 \midrule
 \textbf{Fault Model} &  \\
-Prediction Lead Time & 300 s \\
-Mean Time Between Failures & 60 s \\
-Fault Start Delay & 30 s \\
-Recovery Time & 240 s \\
+Prediction Lead Time & 120 s \\
+Mean Time Between Failures & 120 s \\
+Fault Start Delay & 90 s \\
+Recovery Time & 120 s \\
 CPU Failure Probability & 0.33 \\
 Bandwidth Degradation Probability & 0.34 \\
 Server Crash Probability & 0.33 \\
@@ -795,6 +826,9 @@ Max Fog Bidders & 4 \\
 Pause Time ($t_{pause}$) & 1.5 s \\
 Resume Time ($t_{resume}$) & 1.5 s \\
 Resource Impact Weight ($k$) & 0.6 \\
+Bid Timeout & 5.0 s \\
+Retry Migration Interval & 10.0 s \\
+Max Migration Retries & 10 \\
 \midrule
 \textbf{Trust Model} &  \\
 Trust Enabled & True \\
@@ -816,8 +850,9 @@ Passive Recovery Interval & 21 s \\
 % Network Overhead Ratio & 0.04 \\
 % \midrule
 \textbf{Task Model} &  \\
-Tasks per Edge Device & 20 \\
+Tasks per Edge Device & 32 \\
 Mean Inter-Arrival Time & 160 s \\
+Task Generation Cutoff Buffer Ratio & 1.6 \\
 % Arrival Jitter & 20\% \\
 % Default Runtime & 260 s \\
 % Default Demand (MIPS) & 700 MIPS \\
@@ -836,57 +871,171 @@ SLA Runtime Multiplier & 1.2 \\
 
 \subsection{Metrics for Comparison}
 
-To understand how the proposed collaborative FT approach behaves compared to the baseline configuration, we rely on a set of metrics that capture how well the system maintains timeliness, how smoothly it handles migrations, and how stable it remains when faults occur. These metrics highlight the practical influence of gossip visibility, trust-aware bidding, and prediction-driven migration, and they help show how these components shape the flow of tasks through the fog layer.
+To better understand how the proposed collaborative FT model behaves compared to the baseline configurations, we rely on a set of metrics which capture how well the system maintains its timeliness, how smoothly it handles migrations, and how stable it remains when a fault occurs. These metrics highlight the practical influence of gossip visibility, trust-aware bidding, and a prediction driven migration. They help in showing how these components shape the flow of tasks through the fog layer.
 
 \begin{description}
 
-\item[SLA violation rate.]  
-Each task in the system is associated with a completion deadline, and a violation is recorded whenever the task finishes after this deadline. Since both predicted faults and unexpected degradations can delay execution or increase migration overhead, the SLA violation rate provides a direct indication of whether the proposed FT framework improves reliability under fault conditions. A lower violation rate typically reflects more stable execution.
+\item[SLA violation rate]  
+Each task in the system has a particular completion deadline, and a violation is recorded whenever the task fails to finish within its deadline. Since both predicted faults and unexpected degradations can delay execution or increase migration overhead, the SLA violation rate provides a straightforward representation of whether the proposed FT framework improves reliability under given fault conditions or not. A lower violation rate generally reflects a more stable execution.
 
-\item[Average migration time.]  
-This measures how long a container remains in the migration process, beginning at the pause event and ending when execution resumes at the destination. A container may experience several migrations during its lifetime, especially in environments with repeated or overlapping faults, and for this reason average migration time becomes an important metric to observe. It shows whether the FT mechanisms keep recovery overhead manageable or whether repeated migrations accumulate into noticeable performance penalties. Lower values usually indicate smoother and more predictable recovery.
+\item[Average migration time]  
+This measures how long a given container remains in the migration process, it starts the moment the container and its processes have been paused up until the point when execution resumes at the destination. A container may experience several migrations during its lifetime, especially in environments that have repeated or overlapping faults, and for this reason, the average migration time becomes an essential metric to monitor. It shows whether the FT mechanisms keep recovery overhead manageable or if the repeated migrations accumulate into noticeable performance penalties. Lower values usually indicate smoother and more predictable recovery.
 
-\item[Average makespan time.]  
-Makespan represents the total duration a task spends in the system, including execution time, any delays caused by predicted or reactive faults, and all migration-related overhead. We compute this value for each task and then average across the workload. Makespan offers a broad view of end-to-end performance and helps reveal whether tasks are progressing efficiently despite migrations and disruptions.
+\item[Average makespan time]  
+Makespan refers to the total duration a task spends in the system; it includes the execution time, any delays caused by predicted or reactive faults, and all migration-related overhead. We compute this value for each task and then average across the workload. Makespan offers a broad view of end-to-end performance and helps reveal whether tasks are progressing efficiently or not despite the migrations and disruptions.
 
-\item[Total number of migrations.]  
-To better understand how the system responds to faults, we track the total number of migrations and classify them into intra-fog, inter-fog, and cloud migrations. Intra-fog migrations reflect the system’s ability to recover locally. Inter-fog migrations show how often cooperation among fog nodes is required. Cloud migrations indicate situations where neither local recovery nor inter-fog support is feasible. Observing the distribution of these migration types helps compare the behavior of the proposed FT approach with the baseline configuration, particularly in terms of how often unnecessary or avoidable migrations occur.
+\item[Total number of migrations]  
+We track the total number of migrations and classify them into three categories: intra-fog, inter-fog, and cloud migrations, in order to clearly show how the system responds to faults. Intra-fog migrations reflect the system’s ability to recover locally. Inter-fog migrations show how often cooperation among fog nodes is needed. Cloud migrations indicate situations where neither local recovery nor inter-fog support is feasible and act as a global fall back. Observing the distribution of these migration types highlights and helps compare the behavior of the proposed FT approach to its baseline configuration, particularly in terms of how often unnecessary or avoidable migrations occur.
 
 \end{description}
 
-Together, these metrics provide a comprehensive view of responsiveness, efficiency, and stability, allowing us to compare the proposed FT approach with the baseline configuration in a controlled and meaningful way.
+Together, all these metrics provide a thorough view of the responsiveness, efficiency, and stability, thereby allowing us to compare the proposed FT approach with the baseline configuration in a controlled and meaningful manner.
 
 
+
+
+% ###############################################################
+%       Results and Discussion
+% ###############################################################
+\section{Results} \label{sec:results}
+
+This section presents the performance evaluation of the proposed \textit{Collaborative Decentralized (Ours)} framework compared against a \textit{Centralized (Baseline)} approach. The experiments were conducted using the configuration detailed in Section~\ref{sec:methodology}, with metrics collected over 1793 generated tasks, 85 faults , and simulated over a period of 1hr (3600s). The findings focus on task completion latency, system stability, migration behavior, and fault tolerance efficiency.
+
+\subsection{Performance Overview}
+
+Table~\ref{tab:performance_comparison} summarizes the core performance metrics for both operational modes. The \textit{Collaborative Decentralized (Ours)} approach achieved an average makespan of 184.84 seconds, which is lower than the 188.36 seconds observed in the \textit{Centralized (Baseline)}. Additionally, the load imbalance standard deviation was reduced from 14.24 in the baseline to 11.78 in the proposed approach, indicating a more uniform distribution of workload across the fog layer.
+
+\begin{table}[h!]
+\centering
+\caption{Overall Performance Comparison}
+\label{tab:performance_comparison}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Metric} & \textbf{\begin{tabular}[c]{@{}c@{}}Collaborative\\ Decentralized (Ours)\end{tabular}} & \textbf{\begin{tabular}[c]{@{}c@{}}Centralized\\ (Baseline)\end{tabular}} \\ 
+\midrule
+Average Makespan (s)        & 184.84    & 188.36    \\
+Load Imbalance (StdDev)     & 11.78     & 14.24     \\
+Total Migrations            & 479       & 580       \\
+SLA Violation Ratio         & 5.18\%    & 5.18\%    \\
+Total SLA Violations        & 93        & 93        \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Migration Analysis}
+
+A detailed breakdown of migration behavior is presented in Table~\ref{tab:migration_breakdown}. The total number of migrations required to maintain system stability was significantly lower in the decentralized mode (479) compared to the centralized baseline (580). 
+
+\begin{table}[h!]
+\centering
+\caption{Migration Distribution by Type}
+\label{tab:migration_breakdown}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Migration Type} & \textbf{\begin{tabular}[c]{@{}c@{}}Collaborative\\ Decentralized (Ours)\end{tabular}} & \textbf{\begin{tabular}[c]{@{}c@{}}Centralized\\ (Baseline)\end{tabular}} \\ 
+\midrule
+Intra-fog Migrations   & 139   & 128   \\
+Inter-fog Migrations   & 281   & 421   \\
+Cloud Migrations       & 59    & 31    \\
+\midrule
+\textbf{Total}         & \textbf{479} & \textbf{580} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The breakdown reveals that the proposed approach performed fewer inter-fog migrations (281) than the baseline (421), suggesting that the gossip-informed scoring mechanism effectively identified suitable candidates without necessitating excessive task hops. However, the decentralized approach utilized cloud fallbacks slightly more frequently (59) than the centralized baseline (31), likely due to the lack of a global view forcing a cloud escalation when local neighborhoods were saturated. Conversely, the proposed approach achieved a higher number of intra-fog recoveries (139 vs. 128), prioritizing local resource utilization before attempting remote transfers.
+
+\subsection{Reliability and Fault Tolerance}
+
+Both systems demonstrated identical reliability in terms of Service Level Agreement (SLA) adherence. As shown in Table~\ref{tab:performance_comparison}, both the Collaborative Decentralized and Centralized modes recorded a violation ratio of approximately 5.18\%, with exactly 93 violations out of 1793 tasks. 
+
+In terms of fault recovery, both modes successfully recovered 85 faults with an average lead time of 120.0 seconds. The average time taken to complete a migration was 1.27 seconds for the decentralized approach and 1.13 seconds for the centralized baseline. The slightly higher migration time in the decentralized mode can be attributed to the negotiation overhead inherent in the reverse auction process, which is absent in the direct assignment logic of the centralized scheduler.
+
+\begin{table}[h!]
+\centering
+\caption{Comparison of Average Migration Time}
+\label{tab:avg_migration_time}
+\begin{tabular}{lc}
+\toprule
+\textbf{Mode} & \textbf{Average Migration Time (s)} \\ 
+\midrule
+Collaborative Decentralized (Ours) & 1.27 \\
+Centralized (Baseline)             & 1.13 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Network and Economic Metrics}
+
+The decentralized nature of the proposed solution introduces network overhead due to state dissemination. The gossip protocol generated 5,140 messages totaling approximately 3.26 MB of data. In contrast, the centralized baseline incurred zero gossip overhead as it relies on a central authority. This overhead is incurred over 1 hour of simulation which minimal, and the delay or transmission interval can be  further reduced to optimize the gossip messages generated. 
+
+% ###############################################################
+%       Discussion
+% ###############################################################
+\section{Discussion} \label{sec:discussion}
+
+This work evaluates whether a decentralized, auction-based fault tolerance mechanism could maintain service continuity in a multi-owner fog environment without the latency penalties typically associated with distributed coordination. The results validate the proposed framework, demonstrating that shifting decision-making authority to individual fog nodes achieves a superior balance of autonomy, stability, and efficiency compared to a centralized baseline.
+
+\subsection{Performance}
+A critical finding is that our proposed approach achieved a lower average makespan (184.84 s) than baseline (188.36 s). This challenges the assumption that global optimization always yields the most efficient schedule. In contrast to the centralized hybrid optimization (MHHO-ACO) used in \cite{kashyapHybridApproachFaulttolerance2024b}, our results suggest that centralized solvers can become bottlenecks during high-frequency fault events. By decentralizing the decision process, our framework allows nodes to react immediately to local state changes and autonomously asses their condition and subsequently decide whether or not to partake in the auction. 
+
+\subsection{Migration Dynamics and Stability}
+The structural impact of the proposed mechanism is evident in the significant reduction of total migrations (479 vs. 580 for the baseline). Specifically, Inter-fog migrations decreased (281 vs. 421), while Intra-fog migrations increased (139 vs. 128). This shift indicates that the auction mechanism acts as a strict filter, prioritizing local recovery and preventing nodes from accepting tasks they cannot sustain. The reduction in inter-fog migrations suggests that the proposed scoring and bidding mechanisms effectively filter out sub-optimal migration candidates that a central controller might otherwise force a node to accept. This confirms the hypothesis that enabling node autonomy prevents "ping-pong" migration effects, leading to a more stable execution environment.
+
+However, the lack of global visibility resulted in higher cloud fallbacks (59 vs. 31). This was an expected trade-off in decentralized edge systems, as  was also observed in the fuzzy-logic migration framework in Pala and Pinarer \cite{palaContainerMigrationApproach2025}, where local uncertainty often necessitates escalation to the cloud.
+
+\subsection{Reliability}
+Our proposed approached maintained an identical SLA violation ratio of 5.18\% (93 violations) compared to the baseline, demonstrating that decentralization does not necessarily compromise reliability. However, our decentralized approach utilized cloud fallbacks more frequently, which is an expected trade-off of the "partial view" inherent in the gossip protocol, where a decentralized node may occasionally fail to find a viable neighbour in its gossip table and default to the cloud. 
+
+\subsection{Latency Trade-offs in Negotiation}
+The introduction of the reverse-auction mechanism introduces a calculated overhead. As observed in the results, the average migration time for the proposed approach (1.27 s) was slightly higher than the baseline (1.13 s). This additional latency is the cost of establishing trust and fairness in a multi-owner environment. As noted above however, this minor increase in migration latency did not severely impact the overall task completion time, implying that while the act of migrating takes longer due to bidding, the resulting placement is of higher quality. Moreover, as noted in \cite{tranProactiveStatefulFaultTolerant2022}, stateful migration technologies like CRIU can significantly reduce startup costs, rendering this slight negotiation delay negligible in the context of the overall makespan reduction.
+
+Moreover, as discussed in the results, the gossip protocol introduces slight network overhead which contributes to bandwidth degradation. However, this represents an acceptable trade-off since the impact on overall performance is minimal, and the protocol provides essential state context to the origin fog node. the gossip protocol also prevents network storms by eliminating the need to broadcast bid requests to the entire network.
+
+\subsection{Economic Incentives and Load Balancing}
+
+The proposed approach demonstrated superior load balancing capabilities, with a load imbalance standard deviation of 11.78 compared to 14.24 in the baseline. This improvement validates the economic incentive model adapted from \cite{heOnlineAuctionbasedIncentive2022}. By dynamically pricing resources based on their scarcity (CPU, RAM, and Bandwidth), the reverse auction naturally guides containers toward the least loaded nodes. Nodes are compensated more when they assist during high-demand periods, aligning individual profit motives with the system-wide goal of load equalization.
+
+Furthermore, the improved load balance indicates that the proposed economic scoring mechanism effectively prevents the ``thundering herd'' problem common in central scheduling where a central scheduler might overload a single optimal node. This extends the work \cite{mudassarDecentralizedLatencyAwareTask2020} by demonstrating that economic incentives can guide decentralized grouping as effectively as heuristic methods.
+
+\subsection{Robustness Against Strategic or Dishonest Behavior}
+
+This section discusses how the proposed collaborative FT system behaves in situations when fog nodes attempt to misreport their current state or strategically manipulate the migration process. These scenarios highlight how the proposed mechanisms, gossip protocol, dynamic scoring (Eq.~\ref{eq:score}), bid formulation, and the trust evolution equations work together to ensure that FT is carried out in a trustworthy and timely manner. The scenarios also show how dishonest behavior by fog nodes eventually exposes itself once the container completes migration and execution.
+
+\begin{description}
+
+\item[Scenario 1: A fog node understates its bid.]
+Imagine a fog node that tries to look attractive by reporting a very small \(T^{claimed}_{mig}\) in Eq.~\ref{eq:claimed_mig} and a small impact value in Eq.~\ref{eq:impact}. The bid it sends to the origin fog node appears to be the best i.e. cheapest, so it may occasionally win. However, once the migration completes, the system recomputes the actual bandwidth using Eq.~\ref{eq:actual_bw} and the actual migration time using Eq.~\ref{eq:tmig_actual}. If the real conditions are slower than what the node claimed, the error values \(e_{bw}\) and \(e_{mig}\) from Eq.~\ref{eq:ebw} and Eq.~\ref{eq:emig} become considerably high, leading to penalized payment using Eq. \ref{eq:plie} and trust decay using Eq. \ref{eq:decay_phase}. In addition, after the task has completed execution, the node will miss the SLA for the task leading to a negative $m_{sla}$, which leads to payment penalty from Eq. \ref{eq:psla} and trust slashing using Eq. \ref{eq:beta_violation}. Since \(Bid_{eff}\) in Eq.~\ref{eq:effective_bid}, evaluated by the origin node, depends on trust, even a few dishonest migrations push the trust value lower and make future effective bids very large. The node that originally looked appealing now becomes too costly for the system to select. As a result, understating a bid only provides a short term benefit, with penalty, before the system naturally moves away from that node.
+
+\item[Scenario 2: A fog node overstates its bid.]
+Now consider a fog node that claims very large transfer times and a large impact value in Eq.~\ref{eq:bid_value}, to keep its load lower and get more payment. If that node somehow wins the bid for migration, even then nothing in the migration exposes any dishonesty because the actual measurements still match the claims. However, the inflated values simply make \(Bid_{eff}\) in Eq.~\ref{eq:effective_bid} much higher than the other candidates, making it harder for it to win bids and get payments. It remains honest, so trust does not decrease, but it almost never wins because the bid selection mechanism will not choose the expensive option. In this sense, overstating is also a losing strategy because the system does not need to penalize it, the auction mechanic already takes care of it.
+
+\item[Scenario 3: A fog node lies about bandwidth or migration time.]
+Consider a fog node that tries to bid strategically, by announcing a high \(Claimed_{bw}\) in Eq.~\ref{eq:impact} and a short \(T^{claimed}_{mig}\) in Eq.~\ref{eq:claimed_mig}, in order to win the bid and get paid more. The bid appears attractive, and the node may even be selected by the origin fog node. Once the container begins transferring, the origin node recomputes the actual bandwidth through Eq.~\ref{eq:actual_bw} and the actual migration time using Eq.~\ref{eq:tmig_actual}. If the transfer behaves significantly worse than claimed, the resulting error values \(e_{bw}\) and \(e_{mig}\) from Eq.~\ref{eq:ebw} and Eq.~\ref{eq:emig} become high. This immediately introduces a dishonesty penalty through Eq.~\ref{eq:plie}, reducing the final payment for hosting the container, and also results in trust decay using Eq.~\ref{eq:decay_phase}. Since \(Bid_{eff}\) in Eq.~\ref{eq:effective_bid} depends on trust, the node’s future bids become expensive relative to honest competitors. After only a few such migrations, the node loses its ability to win auctions and is pushed out of the collaboration.
+
+\item[Scenario 4: A fog node lies about CPU or RAM load.]
+A different type of misreporting occurs when a fog node lies specifically in its bid by exaggerating its available CPU or RAM capacity. In this case the gossip values in Eq.~\ref{eq:gossip_cpu} through Eq.~\ref{eq:gossip_bw} may still be honest, but the bid claims that hosting the container will have little impact on the node. This lowers the calculated \(Impact\) term in Eq.~\ref{eq:impact} and produces a more attractive \(Bid_{value}\) in Eq.~\ref{eq:bid_value}. Once the node wins the auction and begins execution, the truth emerges. The overloaded server slows down the task execution, increasing the actual completion time \(T_{complete}\) and causing the SLA margin in Eq.~\ref{eq:msla} to become negative. This triggers the SLA penalty from Eq.~\ref{eq:psla}, reducing the final payment and also decreasing trust using Eq.~\ref{eq:beta_violation}. With weakened trust, even correctly reported future bids produce larger \(Bid_{eff}\) values through Eq.~\ref{eq:effective_bid}. As a result, the node becomes less competitive and eventually stops winning auctions. The system does not need to verify CPU or RAM reports explicitly because the execution slowdown reveals the dishonesty, and payment and trust penalties enforce the correction.
+
+\item[Scenario 5: A fog node lies in the gossip state.]
+A fog node may instead choose to manipulate its gossip load in the $StateTable$ updates, reporting lower loads to make sure its selected in the scoring function of Eq.~\ref{eq:score}. This can help the node attract more migration bid requests in the short term. However, when the node receives more containers than it can actually handle, the execution time for tasks start to explode leading to delays. These delays lead to the cascading evaluations discussed in Scenario 4 above which ultimately reveal the false claims and penalizes the node making it unattractive in future considerations. 
+
+%increased task completion time, \(T_{complete}\), and lead to negative SLA margin $m_{sla}$ (Eq.~\ref{eq:msla}). The system then applies the SLA penalty from Eq.~\ref{eq:psla} and reduces trust according to Eq.~\ref{eq:beta_violation}. As trust decreases, the node's future bids evaluate into much higher \(Bid_{eff}\) value, making it far less competitive. Over time the system stops selecting this node because its dishonest gossip data fails to match its actual performance. The model naturally shifts away from such nodes since real observations of execution and payment outcomes override false claims.
+
+
+% \item[Scenario 6: A fog node uses multiple dishonest strategies together.]
+% A fog node might attempt to manipulate several parts of the workflow at once. It may falsify gossip loads, understate \(T^{claimed}_{mig}\), inflate \(Claimed_{bw}\), and misreport CPU and RAM availability. Each dishonest action affects different components of the system. Gossip lies distort the load inputs in Eq.~\ref{eq:gossip_cpu} through Eq.~\ref{eq:gossip_bw} and change the scoring results of Eq.~\ref{eq:score}. Bid manipulation alters Eq.~\ref{eq:claimed_mig} and Eq.~\ref{eq:impact}, creating an artificially low \(Bid_{value}\). During migration, the actual values measured through Eq.~\ref{eq:actual_bw} and Eq.~\ref{eq:tmig_actual} reveal discrepancies, increasing \(e_{bw}\) and \(e_{mig}\) in Eq.~\ref{eq:ebw} and Eq.~\ref{eq:emig}, which activate the payment dishonesty penalty in Eq.~\ref{eq:plie} and reduce trust via Eq.~\ref{eq:decay_phase}. After execution, the overloaded state typically leads to a negative SLA margin in Eq.~\ref{eq:msla}, resulting in the SLA penalty of Eq.~\ref{eq:psla} and a further trust reduction using Eq.~\ref{_
+
+
+\end{description}
+
+Taken together, these scenarios show that dishonest behavior undermines a fog node’s ability to participate in the system. The gossip equations, the scoring formula, the bid formulation, the effective bid equation, and the trust updates all reinforce one another. Honest nodes remain competitive and dishonest ones gradually lose influence. The system maintains stable cooperation even when individual nodes attempt to manipulate their reported conditions.
+
+
+% #######################################
+% REFERENCES
+% #######################################
 \clearpage
-
 \bibliographystyle{myIEEEtran}
-\bibliography{references}  %%% Remove comment to use the external .bib file (using bibtex).
-%%% and comment out the ``thebibliography'' section.
-
-
-%%% Comment out this section when you \bibliography{references} is enabled.
-% \begin{thebibliography}{1}
-
-% \bibitem{kour2014real}
-% George Kour and Raid Saabne.
-% \newblock Real-time segmentation of on-line handwritten arabic script.
-% \newblock In {\em Frontiers in Handwriting Recognition (ICFHR), 2014 14th
-%   International Conference on}, pages 417--422. IEEE, 2014.
-
-% \bibitem{kour2014fast}
-% George Kour and Raid Saabne.
-% \newblock Fast classification of handwritten on-line arabic characters.
-% \newblock In {\em Soft Computing and Pattern Recognition (SoCPaR), 2014 6th
-%   International Conference of}, pages 312--318. IEEE, 2014.
-
-% \bibitem{hadash2018estimate}
-% Guy Hadash, Einat Kermany, Boaz Carmeli, Ofer Lavi, George Kour, and Alon
-%   Jacovi.
-% \newblock Estimate and replace: A novel approach to integrating deep neural
-%   networks with existing applications.
-% \newblock {\em arXiv preprint arXiv:1804.09028}, 2018.
-
-% \end{thebibliography}
-
+\bibliography{references}
 
 \end{document}
